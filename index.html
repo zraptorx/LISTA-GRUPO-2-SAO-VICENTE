@@ -27,7 +27,6 @@
   th, td { border:1px solid #ddd; padding:6px 8px; text-align:center; vertical-align:middle; }
   th { position: sticky; top:0; background:#f5f5f5; z-index: 3; }
 
-  /* Coluna do nome fixa */
   th.name, td.name {
     position: sticky;
     left: 0;
@@ -51,11 +50,6 @@
 
   .errorBox { display:none; margin:10px auto 0; max-width:980px; padding:10px; border-radius:12px;
               border:1px solid #ffd2d2; background:#ffefef; color:#900; white-space:pre-wrap; }
-
-  @media (max-width: 480px){
-    th.name, td.name { min-width: 220px; max-width: 280px; }
-    th, td { padding: 6px 6px; }
-  }
 </style>
 </head>
 
@@ -96,7 +90,6 @@
     serverTimestamp, getDoc
   } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-  // ====== CONFIG (SEU PROJETO) ======
   const firebaseConfig = {
     apiKey: "AIzaSyCM0nYBjOaHWKVjUm6PPpPjQ2MdAiqil0s",
     authDomain: "lista-grupo-2-sao-vicente.firebaseapp.com",
@@ -113,30 +106,19 @@
   const updEl = document.getElementById("updated");
   const errorBox = document.getElementById("errorBox");
 
-  function setStatus(text, cls){
-    statusEl.textContent = text;
-    statusEl.className = "pill " + cls;
-  }
-  function showError(msg){
-    errorBox.style.display = "block";
-    errorBox.textContent = msg;
-    setStatus("Erro", "bad");
-  }
-  function clearError(){
-    errorBox.style.display = "none";
-    errorBox.textContent = "";
-  }
+  function setStatus(text, cls){ statusEl.textContent=text; statusEl.className="pill "+cls; }
+  function showError(msg){ errorBox.style.display="block"; errorBox.textContent=msg; setStatus("Erro","bad"); }
+  function clearError(){ errorBox.style.display="none"; errorBox.textContent=""; }
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  projEl.textContent = "Project: " + (firebaseConfig.projectId || "—");
+  projEl.textContent = "Project: " + firebaseConfig.projectId;
 
-  // ===== MÊS/ANO AUTOMÁTICO (usa fuso do aparelho; isso é OK, mas o docId fica visível) =====
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2,"0");
+  const month = String(now.getMonth()+1).padStart(2,"0");
   const monthId = `${year}-${month}`;
   const daysInMonth = new Date(year, Number(month), 0).getDate();
 
@@ -144,45 +126,21 @@
     now.toLocaleDateString("pt-BR", { month:"long", year:"numeric" });
 
   docEl.textContent = "Doc: presencas_g2/" + monthId;
-
   const docRef = doc(db, "presencas_g2", monthId);
 
-  // ===== LISTA INICIAL (PRÉ-PREENCHIDA) =====
   const defaultNames = [
-    "DEBORA MARGARETE C. SANTOS",
-    "AGUINALDO BARBOSA",
-    "ANNA AMÉLIA S. CAMARGO",
-    "CAMILA CRISTINE DOS SANTOS",
-    "CAMILA VENTURA SIMÃO MACEDO",
-    "CARLA BEATRICE FERREIRA PINTO",
-    "CASSIUS CLAY MACEDO",
-    "GABRIEL SOUZA DOS SANTOS",
-    "GABRIELA RICARTE SANTOS",
-    "GLEISON CORREIA",
-    "JORGE NICOLÁS PEREDO PINTO",
-    "JOSEFA MARIA DE JESUS CAMPOS",
-    "JOSÉ CARLOS MENEZES SANTOS",
-    "JOÃO HENRIQUE M. S. CORREIA",
-    "KALEU DA SILVA OLIVEIRA",
-    "KARINA S. O. PEDRINI",
-    "LUDMILA MATHIAS",
-    "NIVALDO DE JESUS SOARES",
-    "PATRÍCIA SANTOS DE LIMA",
-    "RACHEL RICARTE FREITAS",
-    "ROMULO PEREDO MURTHA",
-    "SAMUEL CARLOS G. M. MENEZES",
-    "SOFIA JESUS DOS SANTOS",
-    "VALENTINA PEREDO PINTO",
-    "VERA LUCIA CONCEIÇÃO SANTOS",
-    "WALTER CAMPOS FERREIRA",
-    "WILLIAN JESUS SANTOS",
-    "YASMIN FERREIRA VIEIRA SOARES",
-    "ANDREIA SILVA GONÇALVES",
-    "CILENE CRISTINA S. BARBOSA",
-    "GILBERTO DOS SANTOS"
+    "DEBORA MARGARETE C. SANTOS","AGUINALDO BARBOSA","ANNA AMÉLIA S. CAMARGO",
+    "CAMILA CRISTINE DOS SANTOS","CAMILA VENTURA SIMÃO MACEDO","CARLA BEATRICE FERREIRA PINTO",
+    "CASSIUS CLAY MACEDO","GABRIEL SOUZA DOS SANTOS","GABRIELA RICARTE SANTOS","GLEISON CORREIA",
+    "JORGE NICOLÁS PEREDO PINTO","JOSEFA MARIA DE JESUS CAMPOS","JOSÉ CARLOS MENEZES SANTOS",
+    "JOÃO HENRIQUE M. S. CORREIA","KALEU DA SILVA OLIVEIRA","KARINA S. O. PEDRINI",
+    "LUDMILA MATHIAS","NIVALDO DE JESUS SOARES","PATRÍCIA SANTOS DE LIMA",
+    "RACHEL RICARTE FREITAS","ROMULO PEREDO MURTHA","SAMUEL CARLOS G. M. MENEZES",
+    "SOFIA JESUS DOS SANTOS","VALENTINA PEREDO PINTO","VERA LUCIA CONCEIÇÃO SANTOS",
+    "WALTER CAMPOS FERREIRA","WILLIAN JESUS SANTOS","YASMIN FERREIRA VIEIRA SOARES",
+    "ANDREIA SILVA GONÇALVES","CILENE CRISTINA S. BARBOSA","GILBERTO DOS SANTOS"
   ];
 
-  // ===== UI =====
   const table = document.getElementById("table");
 
   function render(data){
@@ -192,13 +150,10 @@
     updEl.textContent = "updatedAt: " + (t ? t.toLocaleString("pt-BR") : "—");
 
     table.innerHTML = "";
-
     let header = "<tr><th class='name'>Nome</th>";
-    for(let d=1; d<=daysInMonth; d++){
-      header += `<th class="day">${d}</th>`;
-    }
-    header += "<th>Remover</th></tr>";
-    table.innerHTML += header;
+    for(let d=1; d<=daysInMonth; d++) header+=`<th class="day">${d}</th>`;
+    header+="<th>Remover</th></tr>";
+    table.innerHTML+=header;
 
     for(const name of names){
       let row = `<tr><td class="name">${name}</td>`;
@@ -212,7 +167,6 @@
     }
   }
 
-  // ===== FUNÇÕES GLOBAIS =====
   window.setMark = async (day, name, value) => {
     try{
       clearError();
@@ -221,7 +175,7 @@
         updatedAt: serverTimestamp()
       });
     }catch(e){
-      showError("Falha ao gravar no Firestore (isso explica o 'não sincroniza'):\n\n" + (e?.message || e));
+      showError("Falha ao gravar no Firestore:\n\n" + (e?.message || e));
     }
   };
 
@@ -249,8 +203,6 @@
       const cur = snap.data()?.names || [];
       const next = cur.filter(n => n !== name);
       await updateDoc(docRef, { names: next, updatedAt: serverTimestamp() });
-
-      // limpa marcações desse nome
       const updates = {};
       for(let d=1; d<=daysInMonth; d++){
         updates[`marks.${String(d)}.${name}`] = deleteField();
@@ -269,16 +221,13 @@
       const data = snap.data() || {};
       const names = (data.names || []).slice().sort((a,b)=>a.localeCompare(b,"pt-BR"));
       const marks = data.marks || {};
-
       const today = new Date();
       const d = String(today.getDate());
       const m = String(today.getMonth()+1).padStart(2,"0");
       const y = today.getFullYear();
-
       const presentes = names.filter(n => marks?.[d]?.[n]);
       const txt = `📋 G2 — Presença (${d}/${m}/${y})\nTotal: ${presentes.length}\n\n` +
                   presentes.map((n,i)=>`${i+1}. ${n}`).join("\n");
-
       await navigator.clipboard.writeText(txt);
       alert("Relatório copiado! Cole no WhatsApp.");
     }catch(e){
@@ -292,38 +241,32 @@
       await updateDoc(docRef, { testPing: Math.random().toString(36).slice(2,8), updatedAt: serverTimestamp() });
       alert("OK! Consegui escrever no Firestore. Abra em outro celular para ver atualizar sozinho.");
     }catch(e){
-      showError("TESTE FALHOU — esta é a causa do problema:\n\n" + (e?.message || e));
-      alert("Falhou. Veja a mensagem vermelha com o erro.");
+      showError("TESTE FALHOU:\n\n" + (e?.message || e));
+      alert("Falhou. Veja a mensagem em vermelho.");
     }
   };
 
-  // ===== AUTH + START =====
   onAuthStateChanged(auth, (user) => {
     if(user){
       uidEl.textContent = "uid: " + user.uid;
-      setStatus("Conectado", "ok");
+      setStatus("Conectado","ok");
     }else{
       uidEl.textContent = "uid: —";
-      setStatus("Conectando…", "warn");
+      setStatus("Conectando…","warn");
     }
   });
 
   try{
     await signInAnonymously(auth);
-
-    // garante doc existente (primeiro uso)
     await setDoc(docRef, { names: defaultNames, marks: {}, updatedAt: serverTimestamp() }, { merge: true });
-
-    // realtime
     onSnapshot(docRef,
       (snap) => { if(snap.exists()) render(snap.data()); },
-      (err) => showError("Sem permissão para LER o Firestore (ou domínio não autorizado):\n\n" + (err?.message || err))
+      (err) => showError("Sem permissão para LER o Firestore:\n\n" + (err?.message || err))
     );
-
-    setStatus("Conectado", "ok");
+    setStatus("Conectado","ok");
   }catch(e){
-    showError("Erro ao autenticar (anônimo) ou inicializar:\n\n" + (e?.message || e) +
-      "\n\n⚠️ Confira: Firebase > Authentication > Domínios autorizados (adicione zraptorx.github.io) e Firestore Rules.");
+    showError("Erro ao inicializar:\n\n" + (e?.message || e) +
+      "\n\nConfira Domínios autorizados (zraptorx.github.io) e Regras do Firestore.");
   }
 </script>
 
