@@ -19,29 +19,81 @@
     button{cursor:pointer}
     button.primary{border-color:#111}
     button.danger{border-color:#a33;color:#a33}
+
+    /* Tabela / rolagem */
+    .tableWrap{
+      width:100%;
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch; /* melhora no iPhone */
+      border:1px solid #ddd;
+      border-radius:12px;
+      background:#fff;
+    }
+
+    table{
+      border-collapse:collapse;
+      width:max-content;   /* permite rolagem horizontal natural */
+      min-width:100%;
+      margin-top:0;
+    }
+
+    th,td{border:1px solid #ddd;padding:6px;text-align:center;white-space:nowrap}
+
+    th{
+      background:#f2f2f2;
+      font-size:12px;
+      position:sticky;
+      top:0;
+      z-index:3;
+    }
+
+    /* Coluna fixa do Nome */
+    th.nameHead, td.name{
+      position:sticky;
+      left:0;
+      z-index:4;
+      background:#fff;
+      text-align:left;
+      min-width:260px;
+      max-width:260px;
+    }
+    th.nameHead{
+      background:#f2f2f2;
+      z-index:5; /* acima do corpo */
+    }
+    th.nameHead, td.name{
+      border-right:2px solid #ddd;
+    }
+
+    td.name{font-weight:600}
+    td.day{min-width:38px}
+
     .present{background:#d1f3dc}
-    table{border-collapse:collapse;width:100%;margin-top:12px}
-    th,td{border:1px solid #ddd;padding:6px;text-align:center}
-    th{background:#f2f2f2;font-size:12px;position:sticky;top:0}
-    td.name{text-align:left;font-weight:600;min-width:260px}
+
     .topbar{
       display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
       padding:12px;border:1px solid #ddd;border-radius:12px;background:#fafafa;
       margin:12px 0;
     }
     .field{display:flex;flex-direction:column;gap:6px}
-    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .box{
       border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff;margin-top:12px;
     }
     textarea{width:100%;min-height:130px;resize:vertical}
     .small{font-size:12px;color:#666}
+
+    @media (max-width: 640px){
+      th.nameHead, td.name{
+        min-width:220px;
+        max-width:220px;
+      }
+    }
   </style>
 </head>
 <body>
 
 <h1>📋 Lista de Presença – G2</h1>
-<div class="muted">Clique no dia para marcar presença. Agora também gera texto pronto para WhatsApp com os presentes de um dia.</div>
+<div class="muted">Clique no dia para marcar presença. A coluna “Nome” fica fixa; só os dias deslizam. Também gera texto pronto para WhatsApp com os presentes de um dia.</div>
 
 <div class="topbar">
   <div class="field">
@@ -80,7 +132,9 @@
   </div>
 </div>
 
-<table id="table"></table>
+<div class="tableWrap">
+  <table id="table"></table>
+</div>
 
 <div class="box">
   <div class="small" style="margin-bottom:6px;">Texto pronto para compartilhar no WhatsApp</div>
@@ -92,7 +146,7 @@
 
 <script>
 /**
- * Como funciona o armazenamento:
+ * Armazenamento:
  * - Para cada mês/ano, salvamos em localStorage numa chave "YYYY-MM" (ex.: 2025-12)
  * - Cada marcação fica em data[i+"-"+d] = true (i = índice da pessoa na lista, d = dia do mês)
  */
@@ -198,7 +252,7 @@ function render(){
   const visible = getFilteredIndexes();
 
   // Header
-  let html = "<tr><th>Nome</th>";
+  let html = "<tr><th class='nameHead'>Nome</th>";
   for(let d=1; d<=days; d++) html += "<th>" + d + "</th>";
   html += "</tr>";
 
@@ -208,7 +262,7 @@ function render(){
     html += "<tr><td class='name'>" + nome + "</td>";
     for(let d=1; d<=days; d++){
       const mark = !!data[i + "-" + d];
-      html += "<td class='" + (mark ? "present" : "") + "' onclick='toggle(" + i + "," + d + ")'>" + (mark ? "✓" : "") + "</td>";
+      html += "<td class='day " + (mark ? "present" : "") + "' onclick='toggle(" + i + "," + d + ")'>" + (mark ? "✓" : "") + "</td>";
     }
     html += "</tr>";
   });
