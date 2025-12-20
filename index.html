@@ -1,274 +1,342 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Lista de Presença – Grupo 2 São Vicente</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<style>
-  body { font-family: Arial, sans-serif; background:#f5f5f5; margin:0; padding:12px; }
-  h1 { text-align:center; margin:6px 0 4px; }
-  .sub { text-align:center; color:#555; margin:0 0 10px; }
-
-  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; margin: 8px 0 10px; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; background:#eee; }
-  .ok { background:#e8fff1; color:#0b7; border:1px solid #bff0d2; }
-  .warn { background:#fff7e6; color:#b70; border:1px solid #ffe1a8; }
-  .bad { background:#ffefef; color:#b00; border:1px solid #ffd2d2; }
-
-  .controls { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; justify-content:center; }
-  .controls input, .controls button { padding:9px 10px; font-size:14px; border-radius:10px; border:1px solid #ddd; }
-  .controls button { cursor:pointer; background:#fff; }
-  .primary { background:#1a73e8; color:#fff; border:none; }
-  .danger { background:#c62828; color:#fff; border:none; }
-
-  .wrap { overflow-x:auto; border:1px solid #e8e8e8; border-radius:12px; background:#fff; }
-  table { border-collapse:collapse; width:max-content; min-width: 980px; background:#fff; table-layout: auto; }
-  th, td { border:1px solid #ddd; padding:6px 8px; text-align:center; vertical-align:middle; }
-  th { position: sticky; top:0; background:#f5f5f5; z-index: 3; }
-
-  th.name, td.name {
-    position: sticky;
-    left: 0;
-    background: #fff;
-    z-index: 5;
-    text-align: left;
-    font-weight: 700;
-    min-width: 280px;
-    max-width: 360px;
-    white-space: normal;
-    word-break: break-word;
-    line-height: 1.2;
-  }
-  th.name { background:#f5f5f5; z-index: 6; }
-
-  th.day { min-width: 38px; font-size: 13px; }
-  td input { width: 18px; height: 18px; }
-
-  .remove-btn { background:#c62828; color:#fff; border:none; padding:6px 8px; cursor:pointer; border-radius:10px; }
-  .footer { text-align:center; font-size:12px; color:#666; margin-top:10px; }
-
-  .errorBox { display:none; margin:10px auto 0; max-width:980px; padding:10px; border-radius:12px;
-              border:1px solid #ffd2d2; background:#ffefef; color:#900; white-space:pre-wrap; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lista de Presença – G2 São Vicente</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 16px; }
+    h1 { margin: 0 0 6px; }
+    .sub { color:#555; margin: 0 0 14px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+    label { display:flex; flex-direction:column; gap:4px; font-size:14px; }
+    select, input[type="text"] { padding: 6px 8px; font-size: 14px; }
+    button { padding: 7px 10px; font-size: 14px; cursor:pointer; border-radius:8px; border:1px solid #ddd; background:#fff; }
+    .primary { background:#1a73e8; color:#fff; border:none; }
+    .dangerBtn { background:#ff5b5b; color:#fff; border:none; }
+    .wrap { overflow-x: auto; border:1px solid #eee; border-radius:10px; margin-top: 12px; }
+    table { border-collapse: collapse; min-width: 900px; width: max-content; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: center; }
+    th { position: sticky; top: 0; background: #f5f5f5; z-index: 2; }
+    th.name, td.name { position: sticky; left: 0; background: #fff; z-index: 3; text-align: left; }
+    .pill { display:inline-block; padding:2px 10px; border-radius:999px; background:#f1f1f1; font-size:12px; }
+    .ok { background:#e8fff1; color:#0b7; border:1px solid #bff0d2; }
+    .warn { background:#fff7e6; color:#b70; border:1px solid #ffe1a8; }
+    .bad { background:#ffefef; color:#b00; border:1px solid #ffd2d2; }
+    .panel { border:1px solid #eee; border-radius:10px; padding:12px; margin-top: 12px; }
+    .panel h2 { margin:0 0 10px; font-size:16px; }
+    .muted { color:#666; font-size:12px; margin: 8px 0 0; }
+    .people { display:grid; grid-template-columns: 1fr auto; gap:8px; max-width: 560px; margin-top: 10px; }
+    .nameCell { padding:6px 8px; border:1px solid #e5e5e5; border-radius:8px; background:#fff; }
+  </style>
 </head>
-
 <body>
-  <h1>Lista de Presença – Grupo 2</h1>
-  <p class="sub" id="monthLabel">—</p>
+  <h1>Lista de Presença – G2 São Vicente</h1>
+  <p class="sub">Marcações e lista de nomes sincronizadas em tempo real via Firestore.</p>
 
-  <div class="bar">
-    <span class="pill warn" id="status">Conectando…</span>
-    <span class="pill" id="proj">Project: —</span>
-    <span class="pill" id="docid">Doc: —</span>
-    <span class="pill" id="uid">uid: —</span>
-    <span class="pill" id="updated">updatedAt: —</span>
+  <div class="row">
+    <label>Mês
+      <select id="month"></select>
+    </label>
+    <label>Ano
+      <select id="year"></select>
+    </label>
+    <label>Dia (relatório)
+      <select id="day"></select>
+    </label>
+    <button id="copy" class="primary">Copiar relatório (WhatsApp)</button>
+    <button id="clearDay" class="dangerBtn">Limpar dia</button>
+    <span id="status" class="pill warn">Conectando…</span>
   </div>
 
-  <div class="controls">
-    <input id="newName" placeholder="Adicionar novo nome">
-    <button class="primary" onclick="addPerson()">Adicionar</button>
-    <button onclick="copyReport()">Copiar relatório (hoje)</button>
-    <button class="danger" onclick="testSync()">Testar sincronização</button>
+  <div class="panel">
+    <h2>Adicionar / Remover nomes</h2>
+    <div class="row">
+      <label>Novo nome
+        <input id="newName" type="text" placeholder="Digite o nome completo…" />
+      </label>
+      <button id="addName" class="primary">Adicionar</button>
+    </div>
+    <p class="muted">A lista já vem preenchida. Você pode adicionar e excluir nomes quando precisar.</p>
+    <div id="peopleList" class="people"></div>
   </div>
-
-  <div id="errorBox" class="errorBox"></div>
 
   <div class="wrap">
     <table id="table"></table>
   </div>
 
-  <div class="footer">
-    Firebase • Login anônimo • Sincronização em tempo real • (Mês/Ano automático)
-  </div>
-
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-  import {
-    getFirestore, doc, setDoc, updateDoc, onSnapshot, deleteField,
-    serverTimestamp, getDoc
-  } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
+  // ========= CONFIGURE AQUI (COLE SEU firebaseConfig) =========
   const firebaseConfig = {
-    apiKey: "AIzaSyCM0nYBjOaHWKVjUm6PPpPjQ2MdAiqil0s",
-    authDomain: "lista-grupo-2-sao-vicente.firebaseapp.com",
-    projectId: "lista-grupo-2-sao-vicente",
-    storageBucket: "lista-grupo-2-sao-vicente.firebasestorage.app",
-    messagingSenderId: "95897300612",
-    appId: "1:95897300612:web:e18378220805a70061dcd1"
+    apiKey: "COLE_AQUI",
+    authDomain: "COLE_AQUI",
+    projectId: "COLE_AQUI",
+    storageBucket: "COLE_AQUI",
+    messagingSenderId: "COLE_AQUI",
+    appId: "COLE_AQUI"
   };
+  // ===========================================================
 
-  const statusEl = document.getElementById("status");
-  const projEl = document.getElementById("proj");
-  const docEl = document.getElementById("docid");
-  const uidEl = document.getElementById("uid");
-  const updEl = document.getElementById("updated");
-  const errorBox = document.getElementById("errorBox");
-
-  function setStatus(text, cls){ statusEl.textContent=text; statusEl.className="pill "+cls; }
-  function showError(msg){ errorBox.style.display="block"; errorBox.textContent=msg; setStatus("Erro","bad"); }
-  function clearError(){ errorBox.style.display="none"; errorBox.textContent=""; }
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
   const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
   const db = getFirestore(app);
+  const auth = getAuth(app);
 
-  projEl.textContent = "Project: " + firebaseConfig.projectId;
+  const statusEl = document.getElementById('status');
+  const monthSel = document.getElementById('month');
+  const yearSel  = document.getElementById('year');
+  const daySel   = document.getElementById('day');
+  const table    = document.getElementById('table');
+  const peopleListEl = document.getElementById('peopleList');
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth()+1).padStart(2,"0");
-  const monthId = `${year}-${month}`;
-  const daysInMonth = new Date(year, Number(month), 0).getDate();
+  const CONFIG_DOC_ID = "__config__";
 
-  document.getElementById("monthLabel").innerText =
-    now.toLocaleDateString("pt-BR", { month:"long", year:"numeric" });
-
-  docEl.textContent = "Doc: presencas_g2/" + monthId;
-  const docRef = doc(db, "presencas_g2", monthId);
-
-  const defaultNames = [
-    "DEBORA MARGARETE C. SANTOS","AGUINALDO BARBOSA","ANNA AMÉLIA S. CAMARGO",
-    "CAMILA CRISTINE DOS SANTOS","CAMILA VENTURA SIMÃO MACEDO","CARLA BEATRICE FERREIRA PINTO",
-    "CASSIUS CLAY MACEDO","GABRIEL SOUZA DOS SANTOS","GABRIELA RICARTE SANTOS","GLEISON CORREIA",
-    "JORGE NICOLÁS PEREDO PINTO","JOSEFA MARIA DE JESUS CAMPOS","JOSÉ CARLOS MENEZES SANTOS",
-    "JOÃO HENRIQUE M. S. CORREIA","KALEU DA SILVA OLIVEIRA","KARINA S. O. PEDRINI",
-    "LUDMILA MATHIAS","NIVALDO DE JESUS SOARES","PATRÍCIA SANTOS DE LIMA",
-    "RACHEL RICARTE FREITAS","ROMULO PEREDO MURTHA","SAMUEL CARLOS G. M. MENEZES",
-    "SOFIA JESUS DOS SANTOS","VALENTINA PEREDO PINTO","VERA LUCIA CONCEIÇÃO SANTOS",
-    "WALTER CAMPOS FERREIRA","WILLIAN JESUS SANTOS","YASMIN FERREIRA VIEIRA SOARES",
-    "ANDREIA SILVA GONÇALVES","CILENE CRISTINA S. BARBOSA","GILBERTO DOS SANTOS"
+  // Lista FIXA (já preenchida) — permanece como padrão inicial
+  const defaultPeople = [
+    "DEBORA MARGARETE C. SANTOS",
+    "AGUINALDO BARBOSA",
+    "ANNA AMÉLIA S. CAMARGO",
+    "CAMILA CRISTINE DOS SANTOS",
+    "CAMILA VENTURA SIMÃO MACEDO",
+    "CARLA BEATRICE FERREIRA PINTO",
+    "CASSIUS CLAY MACEDO",
+    "GABRIEL SOUZA DOS SANTOS",
+    "GABRIELA RICARTE SANTOS",
+    "GLEISON CORREIA",
+    "JORGE NICOLÁS PEREDO PINTO",
+    "JOSEFA MARIA DE JESUS CAMPOS",
+    "JOSÉ CARLOS MENEZES SANTOS",
+    "JOÃO HENRIQUE M. S. CORREIA",
+    "KALEU DA SILVA OLIVEIRA",
+    "KARINA S. O. PEDRINI",
+    "LUDMILA MATHIAS",
+    "NIVALDO DE JESUS SOARES",
+    "PATRÍCIA SANTOS DE LIMA",
+    "RACHEL RICARTE FREITAS",
+    "ROMULO PEREDO MURTHA",
+    "SAMUEL CARLOS G. M. MENEZES",
+    "SOFIA JESUS DOS SANTOS",
+    "VALENTINA PEREDO PINTO",
+    "VERA LUCIA CONCEIÇÃO SANTOS",
+    "WALTER CAMPOS FERREIRA",
+    "WILLIAN JESUS SANTOS",
+    "YASMIN FERREIRA VIEIRA SOARES",
+    "ANDREIA SILVA GONÇALVES",
+    "CILENE CRISTINA S. BARBOSA",
+    "GILBERTO DOS SANTOS"
   ];
 
-  const table = document.getElementById("table");
+  // Estado
+  let people = [];                 // [{id,name}]
+  let currentMonthData = { marks: {} };
+  let unsubMonth = null;
+  let unsubConfig = null;
 
-  function render(data){
-    const names = (data?.names || []).slice().sort((a,b)=>a.localeCompare(b,"pt-BR"));
-    const marks = data?.marks || {};
-    const t = data?.updatedAt?.toDate ? data.updatedAt.toDate() : null;
-    updEl.textContent = "updatedAt: " + (t ? t.toLocaleString("pt-BR") : "—");
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function yyyymm(){ return `${yearSel.value}-${pad2(monthSel.value)}`; }
+  function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
+  function slugId(name){
+    // ID estável baseado no nome (evita “lista em branco” por IDs aleatórios)
+    return name
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g,'-')
+      .replace(/(^-|-$)/g,'')
+      .slice(0, 60) || ("pessoa-" + Math.random().toString(36).slice(2,8));
+  }
 
-    table.innerHTML = "";
-    let header = "<tr><th class='name'>Nome</th>";
-    for(let d=1; d<=daysInMonth; d++) header+=`<th class="day">${d}</th>`;
-    header+="<th>Remover</th></tr>";
-    table.innerHTML+=header;
+  function setStatus(text, cls){
+    statusEl.textContent = text;
+    statusEl.className = "pill " + (cls || "");
+  }
 
-    for(const name of names){
-      let row = `<tr><td class="name">${name}</td>`;
-      for(let d=1; d<=daysInMonth; d++){
-        const checked = marks?.[String(d)]?.[name] ? "checked" : "";
-        row += `<td><input type="checkbox" ${checked}
-          onchange="setMark(${d}, ${JSON.stringify(name)}, this.checked)"></td>`;
-      }
-      row += `<td><button class="remove-btn" onclick="removePerson(${JSON.stringify(name)})">X</button></td></tr>`;
-      table.innerHTML += row;
+  // Month/Year/Day UI
+  const now = new Date();
+  for (let m=0;m<12;m++){
+    const o=document.createElement('option');
+    o.value=m+1;
+    o.textContent=new Date(0,m).toLocaleString('pt-BR',{month:'long'});
+    if(m===now.getMonth()) o.selected=true;
+    monthSel.appendChild(o);
+  }
+
+  // Mais anos (para durar)
+  const startYear = now.getFullYear() - 5;
+  const endYear   = now.getFullYear() + 30;
+  for (let y=startYear; y<=endYear; y++){
+    const o=document.createElement('option');
+    o.value=y; o.textContent=y;
+    if(y===now.getFullYear()) o.selected=true;
+    yearSel.appendChild(o);
+  }
+
+  function refreshDayOptions(){
+    const y=+yearSel.value, m=+monthSel.value;
+    const dmax=daysInMonth(y,m);
+    const prev = +daySel.value || now.getDate();
+    daySel.innerHTML = "";
+    for(let d=1; d<=dmax; d++){
+      const o=document.createElement('option');
+      o.value=d; o.textContent=d;
+      if(d===Math.min(prev,dmax)) o.selected=true;
+      daySel.appendChild(o);
     }
   }
 
-  window.setMark = async (day, name, value) => {
-    try{
-      clearError();
-      await updateDoc(docRef, {
-        [`marks.${String(day)}.${name}`]: value,
-        updatedAt: serverTimestamp()
-      });
-    }catch(e){
-      showError("Falha ao gravar no Firestore:\n\n" + (e?.message || e));
-    }
-  };
+  function sortedPeople(){
+    return [...people].sort((a,b)=>a.name.localeCompare(b.name, "pt-BR"));
+  }
 
-  window.addPerson = async () => {
-    const input = document.getElementById("newName");
-    const name = (input.value || "").trim().toUpperCase();
-    if(!name) return;
-    try{
-      clearError();
-      const snap = await getDoc(docRef);
-      const cur = snap.data()?.names || defaultNames;
-      const next = Array.from(new Set([...cur, name]));
-      await updateDoc(docRef, { names: next, updatedAt: serverTimestamp() });
-      input.value = "";
-    }catch(e){
-      showError("Falha ao adicionar nome:\n\n" + (e?.message || e));
-    }
-  };
+  function renderPeopleManager(){
+    peopleListEl.innerHTML = "";
+    sortedPeople().forEach(p=>{
+      const nameDiv = document.createElement('div');
+      nameDiv.className = "nameCell";
+      nameDiv.textContent = p.name;
 
-  window.removePerson = async (name) => {
-    if(!confirm("Excluir o nome para TODOS?\n\n" + name)) return;
-    try{
-      clearError();
-      const snap = await getDoc(docRef);
-      const cur = snap.data()?.names || [];
-      const next = cur.filter(n => n !== name);
-      await updateDoc(docRef, { names: next, updatedAt: serverTimestamp() });
-      const updates = {};
-      for(let d=1; d<=daysInMonth; d++){
-        updates[`marks.${String(d)}.${name}`] = deleteField();
+      const delBtn = document.createElement('button');
+      delBtn.className = "dangerBtn";
+      delBtn.textContent = "Excluir";
+      delBtn.onclick = async ()=>{
+        if(!confirm(`Excluir o nome:\n\n${p.name}\n\nIsso remove o nome da lista para todos.`)) return;
+        const cfgRef = doc(db,'presencas_g2', CONFIG_DOC_ID);
+        await updateDoc(cfgRef, { [`people.${p.id}`]: deleteField() });
+      };
+
+      peopleListEl.appendChild(nameDiv);
+      peopleListEl.appendChild(delBtn);
+    });
+  }
+
+  function renderTable(){
+    const y=+yearSel.value, m=+monthSel.value;
+    const dmax=daysInMonth(y,m);
+
+    let html = "<tr><th class='name'>Nome</th>";
+    for(let d=1; d<=dmax; d++) html += `<th>${d}</th>`;
+    html += "</tr>";
+
+    sortedPeople().forEach(p=>{
+      html += `<tr><td class='name'>${p.name}</td>`;
+      for(let d=1; d<=dmax; d++){
+        const key = `${p.id}-${d}`;
+        const on = !!currentMonthData?.marks?.[key];
+        html += `<td><input type='checkbox' ${on?"checked":""} data-pid='${p.id}' data-d='${d}'></td>`;
       }
-      updates["updatedAt"] = serverTimestamp();
-      await updateDoc(docRef, updates);
-    }catch(e){
-      showError("Falha ao remover nome:\n\n" + (e?.message || e));
-    }
-  };
+      html += "</tr>";
+    });
 
-  window.copyReport = async () => {
-    try{
-      clearError();
-      const snap = await getDoc(docRef);
+    table.innerHTML = html;
+
+    table.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+      cb.onchange = async (e)=>{
+        const pid = e.target.dataset.pid;
+        const d = e.target.dataset.d;
+        const ref = doc(db,'presencas_g2', yyyymm());
+        if(e.target.checked){
+          await updateDoc(ref, { [`marks.${pid}-${d}`]: true });
+        }else{
+          await updateDoc(ref, { [`marks.${pid}-${d}`]: deleteField() });
+        }
+      };
+    });
+  }
+
+  function attachMonthDoc(){
+    if(unsubMonth) unsubMonth();
+    const ref = doc(db,'presencas_g2', yyyymm());
+    setDoc(ref, { marks:{} }, { merge:true });
+    unsubMonth = onSnapshot(ref, snap=>{
+      currentMonthData = snap.data() || { marks:{} };
+      renderTable();
+    });
+  }
+
+  function attachConfigDoc(){
+    if(unsubConfig) unsubConfig();
+    const cfgRef = doc(db,'presencas_g2', CONFIG_DOC_ID);
+    unsubConfig = onSnapshot(cfgRef, snap=>{
       const data = snap.data() || {};
-      const names = (data.names || []).slice().sort((a,b)=>a.localeCompare(b,"pt-BR"));
-      const marks = data.marks || {};
-      const today = new Date();
-      const d = String(today.getDate());
-      const m = String(today.getMonth()+1).padStart(2,"0");
-      const y = today.getFullYear();
-      const presentes = names.filter(n => marks?.[d]?.[n]);
-      const txt = `📋 G2 — Presença (${d}/${m}/${y})\nTotal: ${presentes.length}\n\n` +
-                  presentes.map((n,i)=>`${i+1}. ${n}`).join("\n");
-      await navigator.clipboard.writeText(txt);
-      alert("Relatório copiado! Cole no WhatsApp.");
-    }catch(e){
-      showError("Falha ao gerar/copiar relatório:\n\n" + (e?.message || e));
+      const map = data.people || {};
+      people = Object.entries(map).map(([id,name])=>({id, name}));
+      renderPeopleManager();
+      renderTable();
+    });
+  }
+
+  async function ensureConfigSeededOnce(){
+    const cfgRef = doc(db,'presencas_g2', CONFIG_DOC_ID);
+    const snap = await getDoc(cfgRef);
+    if(snap.exists()){
+      return; // já existe: NÃO sobrescreve (evita “lista em branco”/troca de IDs)
     }
+    const seeded = {};
+    defaultPeople.forEach(name=>{
+      seeded[slugId(name)] = name;
+    });
+    await setDoc(cfgRef, { people: seeded }, { merge:false });
+  }
+
+  document.getElementById('addName').onclick = async ()=>{
+    const input = document.getElementById('newName');
+    const name = (input.value || "").trim();
+    if(!name) { alert("Digite um nome."); return; }
+    const id = slugId(name);
+    const cfgRef = doc(db,'presencas_g2', CONFIG_DOC_ID);
+    await updateDoc(cfgRef, { [`people.${id}`]: name });
+    input.value = "";
   };
 
-  window.testSync = async () => {
-    try{
-      clearError();
-      await updateDoc(docRef, { testPing: Math.random().toString(36).slice(2,8), updatedAt: serverTimestamp() });
-      alert("OK! Consegui escrever no Firestore. Abra em outro celular para ver atualizar sozinho.");
-    }catch(e){
-      showError("TESTE FALHOU:\n\n" + (e?.message || e));
-      alert("Falhou. Veja a mensagem em vermelho.");
-    }
+  document.getElementById('copy').onclick = ()=>{
+    const y=yearSel.value, m=pad2(monthSel.value), d=daySel.value;
+    const presentes = sortedPeople()
+      .filter(p=>currentMonthData?.marks?.[`${p.id}-${d}`])
+      .map(p=>p.name);
+
+    const txt = `📋 G2 — Presença (${d}/${m}/${y})\nTotal: ${presentes.length}\n\n` +
+      presentes.map((n,i)=>`${i+1}. ${n}`).join("\n");
+
+    navigator.clipboard.writeText(txt)
+      .then(()=>alert("Relatório copiado! Cole no WhatsApp."))
+      .catch(()=>alert("Não consegui copiar automaticamente. Tente novamente."));
   };
 
-  onAuthStateChanged(auth, (user) => {
-    if(user){
-      uidEl.textContent = "uid: " + user.uid;
-      setStatus("Conectado","ok");
-    }else{
-      uidEl.textContent = "uid: —";
-      setStatus("Conectando…","warn");
+  document.getElementById('clearDay').onclick = async ()=>{
+    const y=yearSel.value, m=pad2(monthSel.value), d=daySel.value;
+    if(!confirm(`Limpar TODAS as presenças do dia ${d}/${m}/${y} para TODOS?`)) return;
+
+    const ref = doc(db,'presencas_g2', yyyymm());
+    const updates = {};
+    for(const p of people){
+      updates[`marks.${p.id}-${d}`] = deleteField();
     }
+    await updateDoc(ref, updates);
+    alert("Dia limpo!");
+  };
+
+  monthSel.onchange = ()=>{ refreshDayOptions(); attachMonthDoc(); };
+  yearSel.onchange  = ()=>{ refreshDayOptions(); attachMonthDoc(); };
+
+  onAuthStateChanged(auth, (user)=>{
+    if(user) setStatus("Conectado", "ok");
+    else setStatus("Conectando…", "warn");
   });
 
-  try{
+  try {
     await signInAnonymously(auth);
-    await setDoc(docRef, { names: defaultNames, marks: {}, updatedAt: serverTimestamp() }, { merge: true });
-    onSnapshot(docRef,
-      (snap) => { if(snap.exists()) render(snap.data()); },
-      (err) => showError("Sem permissão para LER o Firestore:\n\n" + (err?.message || err))
-    );
-    setStatus("Conectado","ok");
-  }catch(e){
-    showError("Erro ao inicializar:\n\n" + (e?.message || e) +
-      "\n\nConfira Domínios autorizados (zraptorx.github.io) e Regras do Firestore.");
+    await ensureConfigSeededOnce();  // garante que a lista já vem preenchida
+    refreshDayOptions();
+    attachConfigDoc();
+    attachMonthDoc();
+    setStatus("Conectado", "ok");
+  } catch (e){
+    console.error(e);
+    setStatus("Erro de conexão", "bad");
+    alert("Erro ao conectar no Firebase. Confira o firebaseConfig, Auth Anônima e as Regras do Firestore.");
   }
 </script>
-
 </body>
 </html>
