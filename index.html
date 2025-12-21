@@ -41,66 +41,44 @@
 </head>
 <body>
 
-<h1>📋 Lista de Presença – G2 (Tempo real)</h1>
-<div class="muted">
-  Domingos: <b>EBD</b> (manhã) e <b>Culto</b> (noite). PDF: relatório mensal.
-</div>
+<h1>📋 Lista de Presença – G2 (Sincronizado)</h1>
+<div class="muted">Domingos: <b>EBD</b> (manhã) e <b>Culto</b> (noite).</div>
 
 <div class="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
-  <span class="small" id="statusDetail">Aguardando autenticação.</span>
+  <span class="small" id="statusDetail">Verificando banco de dados.</span>
 </div>
 
 <div class="topbar">
   <div class="field"><div class="small">Mês</div><select id="month"></select></div>
   <div class="field"><div class="small">Ano</div><select id="year"></select></div>
-  <div class="field"><div class="small">Dia (WhatsApp)</div><select id="daySelect"></select></div>
-  <div class="field" style="flex:1;min-width:220px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Digite parte do nome..."></div>
-
-  <div class="field"><div class="small">&nbsp;</div><button id="btnGenerate" class="primary">Gerar texto do dia</button></div>
+  <div class="field"><div class="small">Dia (Relatório)</div><select id="daySelect"></select></div>
+  <div class="field" style="flex:1;min-width:220px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Buscar nome..."></div>
+  <div class="field"><div class="small">&nbsp;</div><button id="btnGenerate" class="primary">Gerar Texto</button></div>
   <div class="field"><div class="small">&nbsp;</div><button id="btnCopy" class="primary">Copiar</button></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnPdf" class="primary">Gerar PDF do mês</button></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnClearDay" class="danger">Limpar dia</button></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnForceReload" class="gray">Recarregar</button></div>
+  <div class="field"><div class="small">&nbsp;</div><button id="btnPdf" class="primary">PDF</button></div>
+  <div class="field"><div class="small">&nbsp;</div><button id="btnClearDay" class="danger">Limpar Dia</button></div>
 </div>
 
 <div class="box">
-  <div class="small" style="margin-bottom:6px;"><b>Gerenciar pessoas</b></div>
   <div class="manageGrid">
-    <div class="field">
-      <div class="small">Adicionar pessoa</div>
-      <input id="newPersonName" type="text" placeholder="Ex.: JOÃO DA SILVA">
-    </div>
-    <div class="field" style="flex:0;min-width:180px">
-      <div class="small">&nbsp;</div>
-      <button id="btnAddPerson" class="primary">Adicionar</button>
-    </div>
-    <div class="field">
-      <div class="small">Remover pessoa</div>
-      <select id="removePersonSelect"></select>
-    </div>
-    <div class="field" style="flex:0;min-width:180px">
-      <div class="small">&nbsp;</div>
-      <button id="btnRemovePerson" class="danger">Remover</button>
-    </div>
-  </div>
-  <div class="hint">
-    * Se aparecer erro de acesso, confira regras do Firestore e Auth anônimo.
+    <div class="field"><div class="small">Adicionar Pessoa</div><input id="newPersonName" type="text" placeholder="NOME COMPLETO"></div>
+    <div class="field"><button id="btnAddPerson" class="primary">Adicionar</button></div>
+    <div class="field"><div class="small">Remover</div><select id="removePersonSelect"></select></div>
+    <div class="field"><button id="btnRemovePerson" class="danger">Remover</button></div>
   </div>
 </div>
 
 <div class="tableWrap"><table id="table"></table></div>
 
 <div class="box">
-  <div class="small" style="margin-bottom:6px;">Texto para WhatsApp</div>
-  <textarea id="waText" readonly></textarea>
+  <textarea id="waText" readonly placeholder="O texto do WhatsApp aparecerá aqui..."></textarea>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 <script type="module">
-  // ========= Firebase CONFIG =========
   const firebaseConfig = {
     apiKey: "AIzaSyCM0nYBjOaHWKVjUm6PPpPjQ2MdAiqil0s",
     authDomain: "lista-grupo-2-sao-vicente.firebaseapp.com",
@@ -112,445 +90,95 @@
 
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import {
-    getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField, getDoc
-  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-  // ===== UI =====
-  const monthSel = document.getElementById("month");
-  const yearSel  = document.getElementById("year");
-  const daySel   = document.getElementById("daySelect");
-  const table    = document.getElementById("table");
-  const searchEl = document.getElementById("search");
-  const waText   = document.getElementById("waText");
-
-  const dot = document.getElementById("dot");
-  const statusText = document.getElementById("statusText");
-  const statusDetail = document.getElementById("statusDetail");
-
-  const newPersonNameEl = document.getElementById("newPersonName");
-  const btnAddPerson = document.getElementById("btnAddPerson");
-  const removePersonSelect = document.getElementById("removePersonSelect");
-  const btnRemovePerson = document.getElementById("btnRemovePerson");
+  const monthSel = document.getElementById("month"), yearSel = document.getElementById("year"), daySel = document.getElementById("daySelect"), table = document.getElementById("table"), searchEl = document.getElementById("search"), waText = document.getElementById("waText"), dot = document.getElementById("dot"), statusText = document.getElementById("statusText"), statusDetail = document.getElementById("statusDetail"), newPersonNameEl = document.getElementById("newPersonName"), removePersonSelect = document.getElementById("removePersonSelect");
 
   const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   months.forEach((m,i)=>{ const o=document.createElement("option"); o.value=i; o.text=m; monthSel.appendChild(o); });
-
-  const now = new Date();
-  monthSel.value = now.getMonth();
-  for(let y=now.getFullYear()-1; y<=now.getFullYear()+2; y++){
-    const o=document.createElement("option"); o.value=y; o.text=y; yearSel.appendChild(o);
-  }
+  const now = new Date(); monthSel.value = now.getMonth();
+  for(let y=now.getFullYear()-1; y<=now.getFullYear()+2; y++){ const o=document.createElement("option"); o.value=y; o.text=y; yearSel.appendChild(o); }
   yearSel.value = now.getFullYear();
 
-  function setStatus(kind, text, detail){
-    dot.className = "dot " + (kind==="ok"?"ok":kind==="bad"?"bad":"wait");
-    statusText.textContent = text;
-    statusDetail.textContent = detail || "";
-  }
-
+  function setStatus(kind, text, detail){ dot.className = "dot " + (kind==="ok"?"ok":kind==="bad"?"bad":"wait"); statusText.textContent = text; statusDetail.textContent = detail || ""; }
   function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
   function isSunday(y, m0, d){ return new Date(y, m0, d).getDay() === 0; }
   function monthKey(){ return yearSel.value + "-" + String(Number(monthSel.value)+1).padStart(2,"0"); }
-
-  function refreshDaySelect(){
-    const y = Number(yearSel.value), m = Number(monthSel.value), days = daysInMonth(y,m);
-    const keep = Number(daySel.value || 1);
-    daySel.innerHTML = "";
-    for(let d=1; d<=days; d++){
-      const o=document.createElement("option");
-      o.value=d; o.text = isSunday(y,m,d) ? `${d} (Dom)` : `${d}`;
-      daySel.appendChild(o);
-    }
-    daySel.value = (keep>=1 && keep<=days) ? String(keep) : "1";
-  }
-
   function normalize(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
-  function hashStr(str){ let h=5381; for(let i=0;i<str.length;i++){ h=((h<<5)+h)+str.charCodeAt(i); h>>>=0; } return h.toString(16); }
-  function makePersonId(name){
-    const base = normalize(name).replace(/\s+/g,"-").replace(/[^a-z0-9\-]/g,"");
-    const h = hashStr(base);
-    return (base || "pessoa") + "-" + h.slice(0,8);
-  }
+  function makePersonId(name){ return normalize(name).replace(/\s+/g,"-") + "-" + Math.random().toString(36).substr(2, 5); }
 
-  // ===== Lista padrão RESTAURADA =====
-  const defaultPeopleNames = [
-    "DEBORA MARGARETE C. SANTOS","AGUINALDO BARBOSA","ANNA AMÉLIA S. CAMARGO",
-    "CAMILA CRISTINE DOS SANTOS","CAMILA VENTURA SIMÃO MACEDO","CARLA BEATRICE FERREIRA PINTO",
-    "CASSIUS CLAY MACEDO","GABRIEL SOUZA DOS SANTOS","GABRIELA RICARTE SANTOS",
-    "GLEISON CORREIA","JORGE NICOLÁS PEREDO PINTO","JOSEFA MARIA DE JESUS CAMPOS",
-    "JOSÉ CARLOS MENEZES SANTOS","JOÃO HENRIQUE M. S. CORREIA","KALEU DA SILVA OLIVEIRA",
-    "KARINA S. O. PEDRINI","LUDMILA MATHIAS","NIVALDO DE JESUS SOARES",
-    "PATRÍCIA SANTOS DE LIMA","RACHEL RICARTE FREITAS","ROMULO PEREDO MURTHA",
-    "SAMUEL CARLOS G. M. MENEZES","SOFIA JESUS DOS SANTOS","VALENTINA PEREDO PINTO",
-    "VERA LUCIA CONCEIÇÃO SANTOS","WALTER CAMPOS FERREIRA","WILLIAN JESUS SANTOS",
-    "YASMIN FERREIRA VIEIRA SOARES","ANDREIA SILVA GONÇALVES",
-    "CILENE CRISTINA S. BARBOSA","GILBERTO DOS SANTOS"
-  ];
-  const seedPeople = defaultPeopleNames.map(n => ({ id: makePersonId(n), name: n }));
-  let people = seedPeople.slice();
+  let people = [], marks = {}, app, auth, db, unsubscribeMonth, unsubscribePeople, currentDocRef, peopleDocRef;
 
-  // ===== Firestore =====
-  let app, auth, db;
-  let unsubscribeMonth = null;
-  let unsubscribePeople = null;
-  let currentDocRef = null;
-  let peopleDocRef = null;
-
-  // marks["personId-d-T"] = true
-  let marks = {};
-  let migratedThisMonth = false;
-
-  async function ensureDocExistsOnlyIfMissing(ref, initialData){
-    // ✅ Correção que impede apagar tudo:
-    // só cria se não existir. NUNCA escreve marks:{} em doc já existente.
+  // CORREÇÃO: Função segura para não sobrescrever dados
+  async function safeInitDoc(ref, initialData) {
     const snap = await getDoc(ref);
-    if(!snap.exists()){
-      await setDoc(ref, initialData);
+    if (!snap.exists()) {
+      await setDoc(ref, initialData, { merge: true });
     }
-  }
-
-  function buildColumns(){
-    const y=Number(yearSel.value), m=Number(monthSel.value), days=daysInMonth(y,m);
-    const cols=[];
-    for(let d=1; d<=days; d++){
-      if(isSunday(y,m,d)){
-        cols.push({ d, type:"E", label:String(d), sub:"EBD" });
-        cols.push({ d, type:"C", label:String(d), sub:"Culto" });
-      }else{
-        cols.push({ d, type:"C", label:String(d) });
-      }
-    }
-    return cols;
-  }
-
-  function refreshRemoveSelect(){
-    removePersonSelect.innerHTML = "";
-    const sorted = people.slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
-    for(const p of sorted){
-      const o=document.createElement("option"); o.value=p.id; o.text=p.name;
-      removePersonSelect.appendChild(o);
-    }
-  }
-
-  function getFilteredPeople(){
-    const q = normalize(searchEl.value);
-    if(!q) return people.slice();
-    return people.filter(p => normalize(p.name).includes(q));
-  }
-
-  function markKey(pid, d, t){ return `${pid}-${d}-${t}`; }
-
-  async function toggleMark(pid, d, t){
-    if(!currentDocRef){ alert("Ainda conectando…"); return; }
-    const k = markKey(pid,d,t);
-    const fp = "marks." + k;
-    try{
-      if(marks[k]) await updateDoc(currentDocRef, { [fp]: deleteField() });
-      else await updateDoc(currentDocRef, { [fp]: true });
-    }catch(e){
-      console.error(e);
-      alert("Falha ao salvar. Verifique regras do Firestore.");
-    }
-  }
-
-  async function clearSelectedDay(){
-    const d=Number(daySel.value||1), y=Number(yearSel.value), m=Number(monthSel.value);
-    const sunday = isSunday(y,m,d);
-    if(!confirm("Confirma limpar as presenças do dia " + d + " para TODOS?")) return;
-    if(!currentDocRef){ alert("Ainda conectando…"); return; }
-
-    const patch = {};
-    for(const p of people){
-      const kc = markKey(p.id,d,"C");
-      if(marks[kc]) patch["marks."+kc] = deleteField();
-      if(sunday){
-        const ke = markKey(p.id,d,"E");
-        if(marks[ke]) patch["marks."+ke] = deleteField();
-      }
-    }
-    if(Object.keys(patch).length===0) return;
-
-    try{ await updateDoc(currentDocRef, patch); }
-    catch(e){ console.error(e); alert("Falha ao limpar. Verifique regras."); }
   }
 
   function render(){
-    refreshDaySelect();
-    refreshRemoveSelect();
-    const cols = buildColumns();
-    const visible = getFilteredPeople();
-
+    const y = Number(yearSel.value), m = Number(monthSel.value), days = daysInMonth(y,m), q = normalize(searchEl.value);
+    const filtered = people.filter(p => normalize(p.name).includes(q));
+    
     let html = "<tr><th class='nameHead'>Nome</th>";
-    for(const c of cols){
-      html += c.sub ? `<th>${c.label}<span class="sub">${c.sub}</span></th>` : `<th>${c.label}</th>`;
+    const cols = [];
+    for(let d=1; d<=days; d++){
+      if(isSunday(y,m,d)){
+        cols.push({d, t:"E", label:d, sub:"EBD"}); cols.push({d, t:"C", label:d, sub:"Culto"});
+      } else { cols.push({d, t:"C", label:d}); }
     }
+    cols.forEach(c => html += `<th>${c.label}${c.sub?`<span class="sub">${c.sub}</span>`:""}</th>`);
     html += "</tr>";
 
-    for(const p of visible){
+    filtered.forEach(p => {
       html += `<tr><td class="name">${p.name}</td>`;
-      for(const c of cols){
-        const k = markKey(p.id, c.d, c.type);
-        const on = !!marks[k];
-        html += `<td class="day ${on?"present":""}" data-pid="${p.id}" data-d="${c.d}" data-t="${c.type}">${on?"✓":""}</td>`;
-      }
+      cols.forEach(c => {
+        const k = `${p.id}-${c.d}-${c.t}`, on = !!marks[k];
+        html += `<td class="day ${on?"present":""}" onclick="window.toggleMark('${p.id}',${c.d},'${c.t}')">${on?"✓":""}</td>`;
+      });
       html += "</tr>";
-    }
-
+    });
     table.innerHTML = html;
-
-    table.querySelectorAll("td.day").forEach(td=>{
-      td.addEventListener("click", ()=>{
-        toggleMark(td.getAttribute("data-pid"), Number(td.getAttribute("data-d")), td.getAttribute("data-t"));
-      });
-    });
+    
+    removePersonSelect.innerHTML = people.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
   }
 
-  function getPresentNamesForDay(d, type){
-    const arr=[];
-    for(const p of people){
-      if(marks[markKey(p.id,d,type)]) arr.push(p.name);
-    }
-    arr.sort((a,b)=>a.localeCompare(b,"pt-BR"));
-    return arr;
-  }
+  window.toggleMark = async (pid, d, t) => {
+    const k = `${pid}-${d}-${t}`, fp = "marks." + k;
+    await updateDoc(currentDocRef, { [fp]: marks[k] ? deleteField() : true });
+  };
 
-  function generateWhatsAppText(){
-    const d=Number(daySel.value||1), y=Number(yearSel.value), m0=Number(monthSel.value), m=m0+1;
-    const dd=String(d).padStart(2,"0"), mm=String(m).padStart(2,"0");
-    const sunday = isSunday(y,m0,d);
-
-    if(!sunday){
-      const presentes = getPresentNamesForDay(d,"C");
-      waText.value = presentes.length
-        ? `📋 G2 — Presença (${dd}/${mm}/${y})\nTotal: ${presentes.length}\n\n` + presentes.map((n,i)=>`${i+1}. ${n}`).join("\n")
-        : `📋 G2 — Presença (${dd}/${mm}/${y})\n\nNenhuma presença marcada.`;
-      return;
-    }
-
-    const ebd = getPresentNamesForDay(d,"E");
-    const culto = getPresentNamesForDay(d,"C");
-    const ebdTxt = ebd.length ? `Total: ${ebd.length}\n\n` + ebd.map((n,i)=>`${i+1}. ${n}`).join("\n") : "Nenhuma presença marcada.";
-    const cultoTxt = culto.length ? `Total: ${culto.length}\n\n` + culto.map((n,i)=>`${i+1}. ${n}`).join("\n") : "Nenhuma presença marcada.";
-
-    waText.value =
-      `📋 G2 — Presença (Domingo) ${dd}/${mm}/${y}\n\n` +
-      `📌 EBD (manhã)\n${ebdTxt}\n\n` +
-      `📌 Culto (noite)\n${cultoTxt}`;
-  }
-
-  async function copyWhatsAppText(){
-    try{ await navigator.clipboard.writeText(waText.value); alert("Copiado!"); }
-    catch(e){ waText.select(); document.execCommand("copy"); alert("Copiado!"); }
-  }
-
-  function generateMonthlyPDF(){
-    if(!window.jspdf || !window.jspdf.jsPDF){ alert("PDF não carregou. Recarregue."); return; }
-    const { jsPDF } = window.jspdf;
-
-    const y=Number(yearSel.value), m0=Number(monthSel.value), days=daysInMonth(y,m0);
-    const key = monthKey();
-    const docPdf = new jsPDF({ unit:"pt", format:"a4" });
-
-    docPdf.setFont("helvetica","bold"); docPdf.setFontSize(14);
-    docPdf.text("Relatório Mensal de Presença — G2", 40, 50);
-
-    docPdf.setFont("helvetica","normal"); docPdf.setFontSize(11);
-    docPdf.text(`Mês/Ano: ${months[m0]} / ${y}   (Ref: ${key})`, 40, 70);
-    docPdf.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 40, 88);
-
-    const body=[];
-    for(let d=1; d<=days; d++){
-      const dd=String(d).padStart(2,"0"), mm=String(m0+1).padStart(2,"0");
-      const dateStr = `${dd}/${mm}/${y}`;
-      const sunday = isSunday(y,m0,d);
-
-      if(!sunday){
-        const nomes=getPresentNamesForDay(d,"C");
-        body.push([dateStr,"Culto",String(nomes.length),nomes.join(", ")||"-"]);
-      }else{
-        const ebd=getPresentNamesForDay(d,"E");
-        const culto=getPresentNamesForDay(d,"C");
-        body.push([dateStr,"EBD (manhã)",String(ebd.length),ebd.join(", ")||"-"]);
-        body.push([dateStr,"Culto (noite)",String(culto.length),culto.join(", ")||"-"]);
-      }
-    }
-
-    // @ts-ignore
-    docPdf.autoTable({
-      startY:110,
-      head:[["Data","Reunião","Total","Nomes"]],
-      body,
-      styles:{ font:"helvetica", fontSize:9, cellPadding:4, valign:"top" },
-      headStyles:{ fontStyle:"bold" },
-      columnStyles:{ 0:{cellWidth:70}, 1:{cellWidth:90}, 2:{cellWidth:40, halign:"center"}, 3:{cellWidth:330} }
-    });
-
-    docPdf.save(`G2_Presencas_${key}.pdf`);
-  }
-
-  // ===== Migração: NÃO APAGA nada antigo =====
-  async function tryMigrateOldIndexMarks(){
-    const keys = Object.keys(marks || {});
-    const oldKeys = keys.filter(k => /^\d+\-\d+(\-[EC])?$/.test(k) || /^\d+\-\d+$/.test(k));
-    if(oldKeys.length === 0) return;
-
-    const base = (people && people.length) ? people : seedPeople;
-    const patch = {};
-    let changed=false;
-
-    for(const k of oldKeys){
-      const parts=k.split("-");
-      const idx=Number(parts[0]);
-      const day=Number(parts[1]);
-      const type=(parts[2]==="E"||parts[2]==="C") ? parts[2] : "C";
-      const person = base[idx];
-      if(!person) continue;
-
-      const newKey = `${person.id}-${day}-${type}`;
-      if(marks[k] && !marks[newKey]){
-        patch["marks."+newKey] = true;
-        changed=true;
-      }
-    }
-    if(!changed) return;
-    try{ await updateDoc(currentDocRef, patch); }catch(e){ console.warn("Migração falhou:", e); }
-  }
-
-  // ===== LISTENERS =====
-  function attachPeopleListener(){
+  function attachListeners(){
     if(unsubscribePeople) unsubscribePeople();
-
     peopleDocRef = doc(db, "presencas_g2_meta", "people");
-
-    // cria SOMENTE se não existir (sem sobrescrever)
-    ensureDocExistsOnlyIfMissing(peopleDocRef, { people: seedPeople, schemaVersion: 1 }).catch(()=>{});
-
-    unsubscribePeople = onSnapshot(peopleDocRef, (snap)=>{
-      const data=snap.data()||{};
-      const arr=Array.isArray(data.people)?data.people:[];
-      if(arr.length){
-        const parsed = arr.filter(x=>x&&typeof x.id==="string"&&typeof x.name==="string")
-                          .map(x=>({id:x.id, name:x.name.trim()}))
-                          .filter(x=>x.name.length);
-        people = parsed.length ? parsed : seedPeople.slice();
-      }else{
-        people = seedPeople.slice();
-      }
-      render(); generateWhatsAppText();
-    }, (err)=>{
-      console.error(err);
-      setStatus("bad","Sem acesso às pessoas","Confira regras do Firestore (presencas_g2_meta).");
-      people = seedPeople.slice();
-      render(); generateWhatsAppText();
+    unsubscribePeople = onSnapshot(peopleDocRef, snap => {
+      if(snap.exists()) people = snap.data().people || [];
+      render();
     });
-  }
 
-  function attachMonthListener(){
     if(unsubscribeMonth) unsubscribeMonth();
-
-    const key = monthKey();
-    currentDocRef = doc(db, "presencas_g2", key);
-    migratedThisMonth = false;
-
-    // ✅ CORREÇÃO CRÍTICA: cria doc apenas se NÃO existir.
-    // NUNCA escrever {marks:{}} em doc existente.
-    ensureDocExistsOnlyIfMissing(currentDocRef, { marks: {}, schemaVersion: 2 }).catch(()=>{});
-
-    unsubscribeMonth = onSnapshot(currentDocRef, async (snap)=>{
-      const data=snap.data()||{};
-      marks = data.marks || {};
-
-      const ver = Number(data.schemaVersion || 1);
-      if(!migratedThisMonth && ver < 2){
-        migratedThisMonth = true;
-        await tryMigrateOldIndexMarks();
-        try{ await updateDoc(currentDocRef, { schemaVersion: 2 }); }catch(e){}
-      }
-
-      render(); generateWhatsAppText();
-    }, (err)=>{
-      console.error(err);
-      setStatus("bad","Sem acesso ao Firestore","Confira regras do Firestore (presencas_g2).");
+    currentDocRef = doc(db, "presencas_g2", monthKey());
+    unsubscribeMonth = onSnapshot(currentDocRef, snap => {
+      if(snap.exists()) marks = snap.data().marks || {};
+      else { marks = {}; safeInitDoc(currentDocRef, { marks: {} }); }
+      render();
     });
   }
 
-  async function addPerson(){
-    const name=(newPersonNameEl.value||"").trim();
-    if(!name){ alert("Digite o nome."); return; }
-    const id=makePersonId(name);
-    if(people.some(p=>p.id===id || normalize(p.name)===normalize(name))){ alert("Já existe."); return; }
-
-    const newList = people.concat([{id, name}]).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
-    people = newList;
-    newPersonNameEl.value="";
-    render(); generateWhatsAppText();
-
-    try{ await updateDoc(peopleDocRef, { people: newList }); }
-    catch(e){ console.error(e); alert("Adicionado localmente, mas falhou salvar no Firebase (regras)."); }
-  }
-
-  async function removePerson(){
-    const id=removePersonSelect.value;
-    const p=people.find(x=>x.id===id);
-    if(!p){ alert("Selecione alguém."); return; }
-    if(!confirm(`Confirma remover: ${p.name}?`)) return;
-
-    const newList = people.filter(x=>x.id!==id);
-    people = newList;
-    render(); generateWhatsAppText();
-
-    try{ await updateDoc(peopleDocRef, { people: newList }); }
-    catch(e){ console.error(e); alert("Removido localmente, mas falhou salvar no Firebase (regras)."); }
-  }
-
-  // ===== EVENTS =====
-  document.getElementById("btnGenerate").addEventListener("click", generateWhatsAppText);
-  document.getElementById("btnCopy").addEventListener("click", copyWhatsAppText);
-  document.getElementById("btnPdf").addEventListener("click", generateMonthlyPDF);
-  document.getElementById("btnClearDay").addEventListener("click", clearSelectedDay);
-  document.getElementById("btnForceReload").addEventListener("click", ()=>location.reload());
-
-  btnAddPerson.addEventListener("click", addPerson);
-  btnRemovePerson.addEventListener("click", removePerson);
-  newPersonNameEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter") addPerson(); });
-
-  monthSel.addEventListener("change", ()=>{ render(); generateWhatsAppText(); if(db) attachMonthListener(); });
-  yearSel.addEventListener("change",  ()=>{ render(); generateWhatsAppText(); if(db) attachMonthListener(); });
-  daySel.addEventListener("change", generateWhatsAppText);
-  searchEl.addEventListener("input", render);
-
-  // init UI
-  refreshDaySelect();
-  daySel.value = String(now.getDate());
-  render();
-  generateWhatsAppText();
-
-  // init firebase
   (async ()=>{
-    try{
-      setStatus("wait","Autenticando…","Entrando de forma anônima.");
-      app = initializeApp(firebaseConfig);
-      auth = getAuth(app);
-      db = getFirestore(app);
-
+    try {
+      app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
       await signInAnonymously(auth);
-
-      onAuthStateChanged(auth, (user)=>{
-        if(user){
-          setStatus("ok","Conectado","Tempo real ativo.");
-          attachPeopleListener();
-          attachMonthListener();
-        }else{
-          setStatus("wait","Desconectado","Reconectando…");
-        }
+      onAuthStateChanged(auth, user => {
+        if(user) { setStatus("ok","Conectado","Sincronização ativa."); attachListeners(); }
       });
-    }catch(e){
-      console.error(e);
-      setStatus("bad","Erro ao conectar","Verifique Firebase/Firestore/Auth anônimo.");
-    }
+    } catch(e) { setStatus("bad","Erro","Falha na conexão."); }
   })();
-</script>
 
+  document.getElementById("btnCopy").onclick = () => { waText.select(); document.execCommand("copy"); alert("Copiado!"); };
+  document.getElementById("btnForceReload").onclick = () => location.reload();
+  monthSel.onchange = yearSel.onchange = () => attachListeners();
+</script>
 </body>
 </html>
