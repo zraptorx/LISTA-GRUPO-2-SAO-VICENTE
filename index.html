@@ -131,28 +131,19 @@
   <div class="small" style="margin-top:8px;">Dica: clique em “Copiar” e cole no grupo/conversa.</div>
 </div>
 
-<!-- =========================
-     Firebase (MUITO IMPORTANTE)
-     1) Crie um projeto no Firebase
-     2) Ative Authentication (Anonymous) e Firestore
-     3) Cole seu firebaseConfig no bloco abaixo
-   ========================= -->
-
 <script type="module">
-  // ========= COLE AQUI O firebaseConfig DO SEU PROJETO =========
-  // Vá em Firebase Console -> Project settings -> Your apps -> Web app -> firebaseConfig
-  // Substitua o objeto inteiro abaixo pelo seu.
+  // ========= Firebase CONFIG (JÁ PRONTO) =========
   const firebaseConfig = {
-    apiKey: "COLE_AQUI",
-    authDomain: "COLE_AQUI",
-    projectId: "COLE_AQUI",
-    storageBucket: "COLE_AQUI",
-    messagingSenderId: "COLE_AQUI",
-    appId: "COLE_AQUI"
+    apiKey: "AIzaSyCM0nYBjOaHWKVjUm6PPpPjQ2MdAiqil0s",
+    authDomain: "lista-grupo-2-sao-vicente.firebaseapp.com",
+    projectId: "lista-grupo-2-sao-vicente",
+    storageBucket: "lista-grupo-2-sao-vicente.appspot.com",
+    messagingSenderId: "95897300612",
+    appId: "1:95897300612:web:e18378220805a70061dcd1"
   };
-  // ============================================================
+  // ==============================================
 
-  // Firebase SDK (modular)
+  // Firebase SDK (modular) - NÃO MISTURE VERSÕES
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
   import {
@@ -286,12 +277,10 @@
   }
 
   async function ensureDocExists(ref){
-    // cria doc base caso não exista
     await setDoc(ref, { marks: {} }, { merge: true });
   }
 
   function attachMonthListener(){
-    // Remove listener anterior
     if(unsubscribe) unsubscribe();
 
     const key = monthKey();
@@ -324,7 +313,6 @@
       }else{
         await updateDoc(currentDocRef, { [fieldPath]: true });
       }
-      // Não precisa render() aqui: onSnapshot atualiza todo mundo.
     }catch(e){
       console.error(e);
       alert("Falha ao salvar. Verifique conexão/regras do Firestore.");
@@ -344,6 +332,8 @@
           patch["marks." + k] = deleteField();
         }
       }
+      // Se não tiver nada pra apagar, evita erro de updateDoc com objeto vazio
+      if(Object.keys(patch).length === 0) return;
       await updateDoc(currentDocRef, patch);
     }catch(e){
       console.error(e);
@@ -359,12 +349,10 @@
 
     const visible = getFilteredIndexes();
 
-    // Header
     let html = "<tr><th class='nameHead'>Nome</th>";
     for(let d=1; d<=days; d++) html += "<th>" + d + "</th>";
     html += "</tr>";
 
-    // Rows
     visible.forEach((i)=>{
       const nome = pessoas[i];
       html += "<tr><td class='name'>" + nome + "</td>";
@@ -378,7 +366,6 @@
 
     table.innerHTML = html;
 
-    // Click handler (event delegation)
     table.querySelectorAll("td.day").forEach(td=>{
       td.addEventListener("click", ()=>{
         const i = Number(td.getAttribute("data-i"));
@@ -448,7 +435,7 @@
   daySel.addEventListener("change", generateWhatsAppText);
   searchEl.addEventListener("input", render);
 
-  // init
+  // init UI
   refreshDaySelect();
   daySel.value = String(now.getDate());
   render();
