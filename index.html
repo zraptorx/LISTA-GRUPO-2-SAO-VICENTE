@@ -62,6 +62,10 @@
     .dot.ok{background:#16a34a}
     .dot.wait{background:#f59e0b}
     .dot.bad{background:#dc2626}
+
+    /* Domingo: cabeçalhos compactos */
+    th .sub{display:block;font-size:10px;color:#444;margin-top:2px}
+
     @media (max-width: 640px){
       th.nameHead, td.name{min-width:220px;max-width:220px;}
     }
@@ -72,6 +76,7 @@
 <h1>📋 Lista de Presença – G2 (Sincronizado)</h1>
 <div class="muted">
   Agora as marcações ficam <b>iguais para todos</b> (celular/computador/colaboradores), usando Firebase.
+  <br><span class="small">Domingos: duas marcações (EBD e Culto). PDF: relatório mensal.</span>
 </div>
 
 <div class="statusLine" id="statusLine">
@@ -112,6 +117,11 @@
 
   <div class="field">
     <div class="small">&nbsp;</div>
+    <button id="btnPdf" class="primary">Gerar PDF do mês</button>
+  </div>
+
+  <div class="field">
+    <div class="small">&nbsp;</div>
     <button id="btnClearDay" class="danger">Limpar dia</button>
   </div>
 
@@ -130,6 +140,10 @@
   <textarea id="waText" readonly></textarea>
   <div class="small" style="margin-top:8px;">Dica: clique em “Copiar” e cole no grupo/conversa.</div>
 </div>
+
+<!-- jsPDF (PDF no navegador) -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 <script type="module">
   // ========= Firebase CONFIG (JÁ PRONTO) =========
@@ -195,6 +209,7 @@
   yearSel.value = now.getFullYear();
 
   function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+  function isSunday(y, mZeroBased, d){ return new Date(y, mZeroBased, d).getDay() === 0; } // 0 = domingo
 
   function monthKey(){
     const y = yearSel.value;
@@ -203,12 +218,16 @@
   }
 
   function refreshDaySelect(){
-    const days = daysInMonth(Number(yearSel.value), Number(monthSel.value));
+    const y = Number(yearSel.value);
+    const m = Number(monthSel.value);
+    const days = daysInMonth(y, m);
+
     const keep = Number(daySel.value || 1);
     daySel.innerHTML = "";
     for(let d=1; d<=days; d++){
       const o=document.createElement("option");
-      o.value=d; o.text=d;
+      o.value=d;
+      o.text = isSunday(y,m,d) ? `${d} (Dom)` : `${d}`;
       daySel.appendChild(o);
     }
     daySel.value = (keep>=1 && keep<=days) ? String(keep) : "1";
@@ -227,13 +246,31 @@
     return idx;
   }
 
+  // ====== Colunas (Domingo = 2 colunas: EBD e Culto) ======
+  // Cada coluna: { d: number, type: "C"|"E", label: string, sub?: string }
+  function buildColumns(){
+    const y = Number(yearSel.value);
+    const m = Number(monthSel.value);
+    const days = daysInMonth(y, m);
+    const cols = [];
+    for(let d=1; d<=days; d++){
+      if(isSunday(y,m,d)){
+        cols.push({ d, type:"E", label: String(d), sub: "EBD" });   // manhã
+        cols.push({ d, type:"C", label: String(d), sub: "Culto" }); // noite
+      }else{
+        cols.push({ d, type:"C", label: String(d) });
+      }
+    }
+    return cols;
+  }
+
   // ====== Firebase state ======
   let app, auth, db;
   let unsubscribe = null;
   let currentDocRef = null;
 
   // Cache local do mês atual (vem do Firestore)
-  // Estrutura: marks["i-d"] = true
+  // Estrutura: marks["i-d-T"] = true  (T = "C" culto | "E" ebd)
   let marks = {};
 
   function setStatus(kind, text, detail){
@@ -299,12 +336,14 @@
     });
   }
 
-  async function toggleMark(i, d){
+  function markKey(i, d, type){ return `${i}-${d}-${type}`; }
+
+  async function toggleMark(i, d, type){
     if(!currentDocRef){
       alert("Ainda conectando…");
       return;
     }
-    const k = i + "-" + d;
+    const k = markKey(i,d,type);
     const fieldPath = "marks." + k;
 
     try{
@@ -321,18 +360,28 @@
 
   async function clearSelectedDay(){
     const d = Number(daySel.value || 1);
+    const y = Number(yearSel.value);
+    const m = Number(monthSel.value);
+
     if(!confirm("Confirma limpar as presenças do dia " + d + " para TODOS?")) return;
     if(!currentDocRef){ alert("Ainda conectando…"); return; }
 
     try{
       const patch = {};
+      const sunday = isSunday(y,m,d);
+
       for(let i=0;i<pessoas.length;i++){
-        const k = i + "-" + d;
-        if(marks[k]){
-          patch["marks." + k] = deleteField();
+        // culto sempre existe
+        const kc = markKey(i,d,"C");
+        if(marks[kc]) patch["marks." + kc] = deleteField();
+
+        // EBD só domingo
+        if(sunday){
+          const ke = markKey(i,d,"E");
+          if(marks[ke]) patch["marks." + ke] = deleteField();
         }
       }
-      // Se não tiver nada pra apagar, evita erro de updateDoc com objeto vazio
+
       if(Object.keys(patch).length === 0) return;
       await updateDoc(currentDocRef, patch);
     }catch(e){
@@ -344,41 +393,51 @@
   function render(){
     const y = Number(yearSel.value);
     const m = Number(monthSel.value);
-    const days = daysInMonth(y,m);
+
     refreshDaySelect();
-
     const visible = getFilteredIndexes();
+    const cols = buildColumns();
 
+    // Header
     let html = "<tr><th class='nameHead'>Nome</th>";
-    for(let d=1; d<=days; d++) html += "<th>" + d + "</th>";
+    for(const c of cols){
+      if(c.sub){
+        html += `<th>${c.label}<span class="sub">${c.sub}</span></th>`;
+      }else{
+        html += `<th>${c.label}</th>`;
+      }
+    }
     html += "</tr>";
 
+    // Rows
     visible.forEach((i)=>{
       const nome = pessoas[i];
       html += "<tr><td class='name'>" + nome + "</td>";
-      for(let d=1; d<=days; d++){
-        const key = i + "-" + d;
-        const mark = !!marks[key];
-        html += "<td class='day " + (mark ? "present" : "") + "' data-i='"+i+"' data-d='"+d+"'>" + (mark ? "✓" : "") + "</td>";
+      for(const c of cols){
+        const k = markKey(i, c.d, c.type);
+        const mark = !!marks[k];
+        html += "<td class='day " + (mark ? "present" : "") + "' data-i='"+i+"' data-d='"+c.d+"' data-t='"+c.type+"'>" + (mark ? "✓" : "") + "</td>";
       }
       html += "</tr>";
     });
 
     table.innerHTML = html;
 
+    // Click handler (event delegation)
     table.querySelectorAll("td.day").forEach(td=>{
       td.addEventListener("click", ()=>{
         const i = Number(td.getAttribute("data-i"));
         const d = Number(td.getAttribute("data-d"));
-        toggleMark(i, d);
+        const t = td.getAttribute("data-t");
+        toggleMark(i, d, t);
       });
     });
   }
 
-  function getPresentNamesForDay(d){
+  function getPresentNamesForDay(d, type){
     const presentes = [];
     for(let i=0; i<pessoas.length; i++){
-      if(marks[i + "-" + d]) presentes.push(pessoas[i]);
+      if(marks[markKey(i,d,type)]) presentes.push(pessoas[i]);
     }
     presentes.sort((a,b)=>a.localeCompare(b,"pt-BR"));
     return presentes;
@@ -387,24 +446,43 @@
   function generateWhatsAppText(){
     const d = Number(daySel.value || 1);
     const y = Number(yearSel.value);
-    const m = Number(monthSel.value) + 1;
+    const mZero = Number(monthSel.value);
+    const m = mZero + 1;
 
     const dd = String(d).padStart(2,"0");
     const mm = String(m).padStart(2,"0");
+    const sunday = isSunday(y,mZero,d);
 
-    const presentes = getPresentNamesForDay(d);
-
-    if(presentes.length === 0){
-      waText.value = "📋 G2 — Presença (" + dd + "/" + mm + "/" + y + ")\n\nNenhuma presença marcada.";
+    if(!sunday){
+      const presentes = getPresentNamesForDay(d, "C");
+      if(presentes.length === 0){
+        waText.value = `📋 G2 — Presença (${dd}/${mm}/${y})\n\nNenhuma presença marcada.`;
+        return;
+      }
+      const linhas = presentes.map((nome, idx)=> (idx+1) + ". " + nome).join("\n");
+      waText.value =
+        `📋 G2 — Presença (${dd}/${mm}/${y})\n` +
+        `Total: ${presentes.length}\n\n` +
+        linhas;
       return;
     }
 
-    const linhas = presentes.map((nome, idx)=> (idx+1) + ". " + nome).join("\n");
+    // Domingo: EBD + Culto
+    const ebd = getPresentNamesForDay(d, "E");
+    const culto = getPresentNamesForDay(d, "C");
+
+    const ebdTxt = (ebd.length === 0)
+      ? "Nenhuma presença marcada."
+      : `Total: ${ebd.length}\n\n` + ebd.map((n,i)=>`${i+1}. ${n}`).join("\n");
+
+    const cultoTxt = (culto.length === 0)
+      ? "Nenhuma presença marcada."
+      : `Total: ${culto.length}\n\n` + culto.map((n,i)=>`${i+1}. ${n}`).join("\n");
 
     waText.value =
-      "📋 G2 — Presença (" + dd + "/" + mm + "/" + y + ")\n" +
-      "Total: " + presentes.length + "\n\n" +
-      linhas;
+      `📋 G2 — Presença (Domingo) ${dd}/${mm}/${y}\n\n` +
+      `📌 EBD (manhã)\n${ebdTxt}\n\n` +
+      `📌 Culto (noite)\n${cultoTxt}`;
   }
 
   async function copyWhatsAppText(){
@@ -418,9 +496,80 @@
     }
   }
 
+  // ====== PDF mensal ======
+  function generateMonthlyPDF(){
+    // Precisa estar carregado no navegador
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      alert("Biblioteca de PDF não carregou. Recarregue a página.");
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+
+    const y = Number(yearSel.value);
+    const mZero = Number(monthSel.value);
+    const days = daysInMonth(y, mZero);
+
+    const monthName = months[mZero];
+    const key = monthKey();
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`Relatório Mensal de Presença — G2`, 40, 50);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(`Mês/Ano: ${monthName} / ${y}   (Ref: ${key})`, 40, 70);
+    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 40, 88);
+
+    // Tabela (Data / Reunião / Total / Nomes)
+    const body = [];
+
+    for(let d=1; d<=days; d++){
+      const dd = String(d).padStart(2,"0");
+      const mm = String(mZero+1).padStart(2,"0");
+      const dateStr = `${dd}/${mm}/${y}`;
+      const sunday = isSunday(y,mZero,d);
+
+      if(!sunday){
+        const nomes = getPresentNamesForDay(d, "C");
+        body.push([dateStr, "Culto", String(nomes.length), nomes.join(", ") || "-"]);
+      }else{
+        const ebd = getPresentNamesForDay(d, "E");
+        const culto = getPresentNamesForDay(d, "C");
+        body.push([dateStr, "EBD (manhã)", String(ebd.length), ebd.join(", ") || "-"]);
+        body.push([dateStr, "Culto (noite)", String(culto.length), culto.join(", ") || "-"]);
+      }
+    }
+
+    // @ts-ignore
+    doc.autoTable({
+      startY: 110,
+      head: [["Data", "Reunião", "Total", "Nomes"]],
+      body,
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 4, valign: "top" },
+      headStyles: { fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 90 },
+        2: { cellWidth: 40, halign: "center" },
+        3: { cellWidth: 330 }
+      },
+      didDrawPage: (data) => {
+        const pageCount = doc.internal.getNumberOfPages();
+        doc.setFontSize(9);
+        doc.text(`Página ${data.pageNumber} de ${pageCount}`, 40, 820);
+      }
+    });
+
+    doc.save(`G2_Presencas_${key}.pdf`);
+  }
+
   // ====== Events ======
   document.getElementById("btnGenerate").addEventListener("click", generateWhatsAppText);
   document.getElementById("btnCopy").addEventListener("click", copyWhatsAppText);
+  document.getElementById("btnPdf").addEventListener("click", generateMonthlyPDF);
   document.getElementById("btnClearDay").addEventListener("click", clearSelectedDay);
   document.getElementById("btnForceReload").addEventListener("click", ()=>location.reload());
 
