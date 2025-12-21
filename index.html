@@ -24,7 +24,6 @@
     textarea{width:100%;min-height:130px;resize:vertical}
     .small{font-size:12px;color:#666}
 
-    /* Tabela / rolagem */
     .tableWrap{
       width:100%;
       overflow-x:auto;
@@ -63,8 +62,14 @@
     .dot.wait{background:#f59e0b}
     .dot.bad{background:#dc2626}
 
-    /* Domingo: cabeçalhos compactos */
     th .sub{display:block;font-size:10px;color:#444;margin-top:2px}
+
+    .manageGrid{
+      display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+      margin-top:10px;
+    }
+    .manageGrid .field{min-width:220px;flex:1}
+    .hint{font-size:12px;color:#555;margin-top:6px}
 
     @media (max-width: 640px){
       th.nameHead, td.name{min-width:220px;max-width:220px;}
@@ -75,8 +80,7 @@
 
 <h1>📋 Lista de Presença – G2 (Sincronizado)</h1>
 <div class="muted">
-  Agora as marcações ficam <b>iguais para todos</b> (celular/computador/colaboradores), usando Firebase.
-  <br><span class="small">Domingos: duas marcações (EBD e Culto). PDF: relatório mensal.</span>
+  Marcações iguais para todos (Firebase). Domingos: <b>EBD</b> (manhã) e <b>Culto</b> (noite). PDF: relatório mensal.
 </div>
 
 <div class="statusLine" id="statusLine">
@@ -131,6 +135,32 @@
   </div>
 </div>
 
+<div class="box">
+  <div class="small" style="margin-bottom:6px;"><b>Gerenciar pessoas</b></div>
+  <div class="manageGrid">
+    <div class="field">
+      <div class="small">Adicionar pessoa (nome completo)</div>
+      <input id="newPersonName" type="text" placeholder="Ex.: JOÃO DA SILVA" />
+    </div>
+    <div class="field" style="flex:0;min-width:180px">
+      <div class="small">&nbsp;</div>
+      <button id="btnAddPerson" class="primary">Adicionar</button>
+    </div>
+
+    <div class="field">
+      <div class="small">Remover pessoa (selecionar)</div>
+      <select id="removePersonSelect"></select>
+    </div>
+    <div class="field" style="flex:0;min-width:180px">
+      <div class="small">&nbsp;</div>
+      <button id="btnRemovePerson" class="danger">Remover</button>
+    </div>
+  </div>
+  <div class="hint">
+    * A lista de pessoas é sincronizada no Firebase.
+  </div>
+</div>
+
 <div class="tableWrap">
   <table id="table"></table>
 </div>
@@ -146,7 +176,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 <script type="module">
-  // ========= Firebase CONFIG (JÁ PRONTO) =========
+  // ========= Firebase CONFIG =========
   const firebaseConfig = {
     apiKey: "AIzaSyCM0nYBjOaHWKVjUm6PPpPjQ2MdAiqil0s",
     authDomain: "lista-grupo-2-sao-vicente.firebaseapp.com",
@@ -155,29 +185,12 @@
     messagingSenderId: "95897300612",
     appId: "1:95897300612:web:e18378220805a70061dcd1"
   };
-  // ==============================================
 
-  // Firebase SDK (modular) - NÃO MISTURE VERSÕES
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
   import {
     getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField
   } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-  // ====== LISTA (G2) ======
-  const pessoas = [
-    "DEBORA MARGARETE C. SANTOS","AGUINALDO BARBOSA","ANNA AMÉLIA S. CAMARGO",
-    "CAMILA CRISTINE DOS SANTOS","CAMILA VENTURA SIMÃO MACEDO","CARLA BEATRICE FERREIRA PINTO",
-    "CASSIUS CLAY MACEDO","GABRIEL SOUZA DOS SANTOS","GABRIELA RICARTE SANTOS",
-    "GLEISON CORREIA","JORGE NICOLÁS PEREDO PINTO","JOSEFA MARIA DE JESUS CAMPOS",
-    "JOSÉ CARLOS MENEZES SANTOS","JOÃO HENRIQUE M. S. CORREIA","KALEU DA SILVA OLIVEIRA",
-    "KARINA S. O. PEDRINI","LUDMILA MATHIAS","NIVALDO DE JESUS SOARES",
-    "PATRÍCIA SANTOS DE LIMA","RACHEL RICARTE FREITAS","ROMULO PEREDO MURTHA",
-    "SAMUEL CARLOS G. M. MENEZES","SOFIA JESUS DOS SANTOS","VALENTINA PEREDO PINTO",
-    "VERA LUCIA CONCEIÇÃO SANTOS","WALTER CAMPOS FERREIRA","WILLIAN JESUS SANTOS",
-    "YASMIN FERREIRA VIEIRA SOARES","ANDREIA SILVA GONÇALVES",
-    "CILENE CRISTINA S. BARBOSA","GILBERTO DOS SANTOS"
-  ];
 
   // ====== UI ======
   const monthSel = document.getElementById("month");
@@ -189,6 +202,11 @@
   const dot = document.getElementById("dot");
   const statusText = document.getElementById("statusText");
   const statusDetail = document.getElementById("statusDetail");
+
+  const newPersonNameEl = document.getElementById("newPersonName");
+  const btnAddPerson = document.getElementById("btnAddPerson");
+  const removePersonSelect = document.getElementById("removePersonSelect");
+  const btnRemovePerson = document.getElementById("btnRemovePerson");
 
   const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
@@ -209,12 +227,12 @@
   yearSel.value = now.getFullYear();
 
   function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
-  function isSunday(y, mZeroBased, d){ return new Date(y, mZeroBased, d).getDay() === 0; } // 0 = domingo
+  function isSunday(y, mZeroBased, d){ return new Date(y, mZeroBased, d).getDay() === 0; }
 
   function monthKey(){
     const y = yearSel.value;
     const m = String(Number(monthSel.value)+1).padStart(2,"0");
-    return y + "-" + m; // ex.: 2025-12
+    return y + "-" + m;
   }
 
   function refreshDaySelect(){
@@ -234,20 +252,67 @@
   }
 
   function normalize(s){
-    return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-  }
-  function getFilteredIndexes(){
-    const q = normalize(searchEl.value.trim());
-    if(!q) return pessoas.map((_,i)=>i);
-    const idx=[];
-    pessoas.forEach((nome,i)=>{
-      if(normalize(nome).includes(q)) idx.push(i);
-    });
-    return idx;
+    return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
   }
 
-  // ====== Colunas (Domingo = 2 colunas: EBD e Culto) ======
-  // Cada coluna: { d: number, type: "C"|"E", label: string, sub?: string }
+  function hashStr(str){
+    let h = 5381;
+    for(let i=0;i<str.length;i++){
+      h = ((h << 5) + h) + str.charCodeAt(i);
+      h = h >>> 0;
+    }
+    return h.toString(16);
+  }
+
+  function makePersonId(name){
+    const base = normalize(name).replace(/\s+/g,"-").replace(/[^a-z0-9\-]/g,"");
+    const h = hashStr(base);
+    return (base || "pessoa") + "-" + h.slice(0,8);
+  }
+
+  // ====== Pessoas (Firestore) ======
+  const defaultPeopleNames = [
+    "DEBORA MARGARETE C. SANTOS","AGUINALDO BARBOSA","ANNA AMÉLIA S. CAMARGO",
+    "CAMILA CRISTINE DOS SANTOS","CAMILA VENTURA SIMÃO MACEDO","CARLA BEATRICE FERREIRA PINTO",
+    "CASSIUS CLAY MACEDO","GABRIEL SOUZA DOS SANTOS","GABRIELA RICARTE SANTOS",
+    "GLEISON CORREIA","JORGE NICOLÁS PEREDO PINTO","JOSEFA MARIA DE JESUS CAMPOS",
+    "JOSÉ CARLOS MENEZES SANTOS","JOÃO HENRIQUE M. S. CORREIA","KALEU DA SILVA OLIVEIRA",
+    "KARINA S. O. PEDRINI","LUDMILA MATHIAS","NIVALDO DE JESUS SOARES",
+    "PATRÍCIA SANTOS DE LIMA","RACHEL RICARTE FREITAS","ROMULO PEREDO MURTHA",
+    "SAMUEL CARLOS G. M. MENEZES","SOFIA JESUS DOS SANTOS","VALENTINA PEREDO PINTO",
+    "VERA LUCIA CONCEIÇÃO SANTOS","WALTER CAMPOS FERREIRA","WILLIAN JESUS SANTOS",
+    "YASMIN FERREIRA VIEIRA SOARES","ANDREIA SILVA GONÇALVES",
+    "CILENE CRISTINA S. BARBOSA","GILBERTO DOS SANTOS"
+  ];
+
+  let people = [];
+  let peopleUnsub = null;
+
+  function getFilteredPeople(){
+    const q = normalize(searchEl.value);
+    if(!q) return people.slice();
+    return people.filter(p => normalize(p.name).includes(q));
+  }
+
+  function refreshRemoveSelect(){
+    removePersonSelect.innerHTML = "";
+    if(people.length === 0){
+      const o = document.createElement("option");
+      o.value = "";
+      o.text = "Carregando...";
+      removePersonSelect.appendChild(o);
+      return;
+    }
+    const sorted = people.slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+    for(const p of sorted){
+      const o=document.createElement("option");
+      o.value=p.id;
+      o.text=p.name;
+      removePersonSelect.appendChild(o);
+    }
+  }
+
+  // ====== Colunas ======
   function buildColumns(){
     const y = Number(yearSel.value);
     const m = Number(monthSel.value);
@@ -255,8 +320,8 @@
     const cols = [];
     for(let d=1; d<=days; d++){
       if(isSunday(y,m,d)){
-        cols.push({ d, type:"E", label: String(d), sub: "EBD" });   // manhã
-        cols.push({ d, type:"C", label: String(d), sub: "Culto" }); // noite
+        cols.push({ d, type:"E", label: String(d), sub: "EBD" });
+        cols.push({ d, type:"C", label: String(d), sub: "Culto" });
       }else{
         cols.push({ d, type:"C", label: String(d) });
       }
@@ -268,10 +333,11 @@
   let app, auth, db;
   let unsubscribe = null;
   let currentDocRef = null;
+  let peopleDocRef = null;
 
-  // Cache local do mês atual (vem do Firestore)
-  // Estrutura: marks["i-d-T"] = true  (T = "C" culto | "E" ebd)
+  // marks["personId-d-T"] = true
   let marks = {};
+  let migratedThisMonth = false;
 
   function setStatus(kind, text, detail){
     dot.className = "dot " + (kind === "ok" ? "ok" : kind === "bad" ? "bad" : "wait");
@@ -301,6 +367,7 @@
       onAuthStateChanged(auth, (user)=>{
         if(user){
           setStatus("ok","Conectado","Sincronizando com Firestore.");
+          attachPeopleListener();
           attachMonthListener();
         }else{
           setStatus("wait","Desconectado","Reconectando…");
@@ -313,21 +380,115 @@
     }
   }
 
-  async function ensureDocExists(ref){
-    await setDoc(ref, { marks: {} }, { merge: true });
+  async function ensureDocExists(ref, base){
+    await setDoc(ref, base || {}, { merge: true });
   }
 
+  // ====== Pessoas: cria padrão SOMENTE se estiver vazio ======
+  function attachPeopleListener(){
+    if(peopleUnsub) peopleUnsub();
+    peopleDocRef = doc(db, "presencas_g2_meta", "people");
+
+    peopleUnsub = onSnapshot(peopleDocRef, async (snap)=>{
+      const data = snap.data() || {};
+      const arr = Array.isArray(data.people) ? data.people : [];
+
+      if(!snap.exists() || arr.length === 0){
+        const seed = defaultPeopleNames.map(n=>({ id: makePersonId(n), name: n }));
+        try{
+          await ensureDocExists(peopleDocRef, { people: seed, schemaVersion: 1 });
+        }catch(e){}
+        people = seed.slice();
+      }else{
+        people = arr
+          .filter(x => x && typeof x.name === "string" && typeof x.id === "string")
+          .map(x => ({ id: x.id, name: x.name.trim() }))
+          .filter(x => x.name.length > 0);
+      }
+
+      refreshRemoveSelect();
+      render();
+      generateWhatsAppText();
+    }, (err)=>{
+      console.error(err);
+      setStatus("bad","Sem acesso às pessoas","Confira as regras do Firestore.");
+    });
+  }
+
+  async function addPerson(){
+    const name = (newPersonNameEl.value || "").trim();
+    if(!name){ alert("Digite o nome da pessoa."); return; }
+
+    const id = makePersonId(name);
+    const exists = people.some(p => p.id === id || normalize(p.name) === normalize(name));
+    if(exists){ alert("Essa pessoa já existe na lista."); return; }
+
+    const newList = people.concat([{ id, name }])
+      .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+
+    try{
+      await updateDoc(peopleDocRef, { people: newList });
+      newPersonNameEl.value = "";
+    }catch(e){
+      console.error(e);
+      alert("Falha ao adicionar. Verifique regras do Firestore.");
+    }
+  }
+
+  async function removePerson(){
+    const id = removePersonSelect.value;
+    if(!id){ alert("Selecione uma pessoa para remover."); return; }
+
+    const p = people.find(x => x.id === id);
+    if(!p){ alert("Pessoa não encontrada."); return; }
+
+    if(!confirm(`Confirma remover: ${p.name}?`)) return;
+
+    const newList = people.filter(x => x.id !== id);
+
+    try{
+      await updateDoc(peopleDocRef, { people: newList });
+      await clearPersonMarksCurrentMonth(id);
+    }catch(e){
+      console.error(e);
+      alert("Falha ao remover. Verifique regras do Firestore.");
+    }
+  }
+
+  async function clearPersonMarksCurrentMonth(personId){
+    if(!currentDocRef) return;
+    const patch = {};
+    for(const k of Object.keys(marks)){
+      if(k.startsWith(personId + "-")){
+        patch["marks." + k] = deleteField();
+      }
+    }
+    if(Object.keys(patch).length === 0) return;
+    try{ await updateDoc(currentDocRef, patch); }catch(e){}
+  }
+
+  // ====== CORREÇÃO PRINCIPAL: schemaVersion + NÃO apagar chaves antigas ======
   function attachMonthListener(){
     if(unsubscribe) unsubscribe();
 
     const key = monthKey();
     currentDocRef = doc(db, "presencas_g2", key);
+    migratedThisMonth = false;
 
-    ensureDocExists(currentDocRef).then(()=>{}).catch(()=>{});
+    // cria base sem sobrescrever
+    ensureDocExists(currentDocRef, { marks: {}, schemaVersion: 2 }).catch(()=>{});
 
-    unsubscribe = onSnapshot(currentDocRef, (snap)=>{
+    unsubscribe = onSnapshot(currentDocRef, async (snap)=>{
       const data = snap.data() || {};
       marks = (data.marks || {});
+
+      const ver = Number(data.schemaVersion || 1);
+      if(!migratedThisMonth && ver < 2){
+        migratedThisMonth = true;
+        await tryMigrateOldIndexMarks(); // migra SEM deletar antigos
+        try{ await updateDoc(currentDocRef, { schemaVersion: 2 }); }catch(e){}
+      }
+
       render();
       generateWhatsAppText();
     }, (err)=>{
@@ -336,14 +497,50 @@
     });
   }
 
-  function markKey(i, d, type){ return `${i}-${d}-${type}`; }
+  // Migra chaves antigas (índice) para chaves por personId, SEM APAGAR as antigas
+  async function tryMigrateOldIndexMarks(){
+    const keys = Object.keys(marks || {});
+    const oldKeys = keys.filter(k => /^\d+\-\d+(\-[EC])?$/.test(k) || /^\d+\-\d+$/.test(k));
+    if(oldKeys.length === 0) return;
+    if(!people || people.length === 0) return;
 
-  async function toggleMark(i, d, type){
+    const patch = {};
+    let changed = false;
+
+    for(const k of oldKeys){
+      const parts = k.split("-");
+      const idx = Number(parts[0]);
+      const day = Number(parts[1]);
+      const type = (parts[2] === "E" || parts[2] === "C") ? parts[2] : "C";
+
+      const person = people[idx];
+      if(!person) continue;
+
+      const newKey = `${person.id}-${day}-${type}`;
+      if(marks[k] && !marks[newKey]){
+        patch["marks." + newKey] = true; // copia pro novo formato
+        changed = true;
+      }
+      // ✅ NÃO APAGA o antigo
+    }
+
+    if(!changed) return;
+
+    try{
+      await updateDoc(currentDocRef, patch);
+    }catch(e){
+      console.warn("Migração não aplicada:", e);
+    }
+  }
+
+  function markKey(personId, d, type){ return `${personId}-${d}-${type}`; }
+
+  async function toggleMark(personId, d, type){
     if(!currentDocRef){
       alert("Ainda conectando…");
       return;
     }
-    const k = markKey(i,d,type);
+    const k = markKey(personId,d,type);
     const fieldPath = "marks." + k;
 
     try{
@@ -362,26 +559,21 @@
     const d = Number(daySel.value || 1);
     const y = Number(yearSel.value);
     const m = Number(monthSel.value);
+    const sunday = isSunday(y,m,d);
 
     if(!confirm("Confirma limpar as presenças do dia " + d + " para TODOS?")) return;
     if(!currentDocRef){ alert("Ainda conectando…"); return; }
 
     try{
       const patch = {};
-      const sunday = isSunday(y,m,d);
-
-      for(let i=0;i<pessoas.length;i++){
-        // culto sempre existe
-        const kc = markKey(i,d,"C");
+      for(const p of people){
+        const kc = markKey(p.id,d,"C");
         if(marks[kc]) patch["marks." + kc] = deleteField();
-
-        // EBD só domingo
         if(sunday){
-          const ke = markKey(i,d,"E");
+          const ke = markKey(p.id,d,"E");
           if(marks[ke]) patch["marks." + ke] = deleteField();
         }
       }
-
       if(Object.keys(patch).length === 0) return;
       await updateDoc(currentDocRef, patch);
     }catch(e){
@@ -391,53 +583,42 @@
   }
 
   function render(){
-    const y = Number(yearSel.value);
-    const m = Number(monthSel.value);
-
     refreshDaySelect();
-    const visible = getFilteredIndexes();
     const cols = buildColumns();
+    const visiblePeople = getFilteredPeople();
 
-    // Header
     let html = "<tr><th class='nameHead'>Nome</th>";
     for(const c of cols){
-      if(c.sub){
-        html += `<th>${c.label}<span class="sub">${c.sub}</span></th>`;
-      }else{
-        html += `<th>${c.label}</th>`;
-      }
+      html += c.sub ? `<th>${c.label}<span class="sub">${c.sub}</span></th>` : `<th>${c.label}</th>`;
     }
     html += "</tr>";
 
-    // Rows
-    visible.forEach((i)=>{
-      const nome = pessoas[i];
-      html += "<tr><td class='name'>" + nome + "</td>";
+    visiblePeople.forEach((p)=>{
+      html += "<tr><td class='name'>" + p.name + "</td>";
       for(const c of cols){
-        const k = markKey(i, c.d, c.type);
+        const k = markKey(p.id, c.d, c.type);
         const mark = !!marks[k];
-        html += "<td class='day " + (mark ? "present" : "") + "' data-i='"+i+"' data-d='"+c.d+"' data-t='"+c.type+"'>" + (mark ? "✓" : "") + "</td>";
+        html += "<td class='day " + (mark ? "present" : "") + "' data-pid='"+p.id+"' data-d='"+c.d+"' data-t='"+c.type+"'>" + (mark ? "✓" : "") + "</td>";
       }
       html += "</tr>";
     });
 
     table.innerHTML = html;
 
-    // Click handler (event delegation)
     table.querySelectorAll("td.day").forEach(td=>{
       td.addEventListener("click", ()=>{
-        const i = Number(td.getAttribute("data-i"));
+        const pid = td.getAttribute("data-pid");
         const d = Number(td.getAttribute("data-d"));
         const t = td.getAttribute("data-t");
-        toggleMark(i, d, t);
+        toggleMark(pid, d, t);
       });
     });
   }
 
   function getPresentNamesForDay(d, type){
     const presentes = [];
-    for(let i=0; i<pessoas.length; i++){
-      if(marks[markKey(i,d,type)]) presentes.push(pessoas[i]);
+    for(const p of people){
+      if(marks[markKey(p.id,d,type)]) presentes.push(p.name);
     }
     presentes.sort((a,b)=>a.localeCompare(b,"pt-BR"));
     return presentes;
@@ -467,7 +648,6 @@
       return;
     }
 
-    // Domingo: EBD + Culto
     const ebd = getPresentNamesForDay(d, "E");
     const culto = getPresentNamesForDay(d, "C");
 
@@ -498,7 +678,6 @@
 
   // ====== PDF mensal ======
   function generateMonthlyPDF(){
-    // Precisa estar carregado no navegador
     if(!window.jspdf || !window.jspdf.jsPDF){
       alert("Biblioteca de PDF não carregou. Recarregue a página.");
       return;
@@ -512,20 +691,18 @@
     const monthName = months[mZero];
     const key = monthKey();
 
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const docPdf = new jsPDF({ unit: "pt", format: "a4" });
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text(`Relatório Mensal de Presença — G2`, 40, 50);
+    docPdf.setFont("helvetica", "bold");
+    docPdf.setFontSize(14);
+    docPdf.text(`Relatório Mensal de Presença — G2`, 40, 50);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.text(`Mês/Ano: ${monthName} / ${y}   (Ref: ${key})`, 40, 70);
-    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 40, 88);
+    docPdf.setFont("helvetica", "normal");
+    docPdf.setFontSize(11);
+    docPdf.text(`Mês/Ano: ${monthName} / ${y}   (Ref: ${key})`, 40, 70);
+    docPdf.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 40, 88);
 
-    // Tabela (Data / Reunião / Total / Nomes)
     const body = [];
-
     for(let d=1; d<=days; d++){
       const dd = String(d).padStart(2,"0");
       const mm = String(mZero+1).padStart(2,"0");
@@ -544,7 +721,7 @@
     }
 
     // @ts-ignore
-    doc.autoTable({
+    docPdf.autoTable({
       startY: 110,
       head: [["Data", "Reunião", "Total", "Nomes"]],
       body,
@@ -557,13 +734,13 @@
         3: { cellWidth: 330 }
       },
       didDrawPage: (data) => {
-        const pageCount = doc.internal.getNumberOfPages();
-        doc.setFontSize(9);
-        doc.text(`Página ${data.pageNumber} de ${pageCount}`, 40, 820);
+        const pageCount = docPdf.internal.getNumberOfPages();
+        docPdf.setFontSize(9);
+        docPdf.text(`Página ${data.pageNumber} de ${pageCount}`, 40, 820);
       }
     });
 
-    doc.save(`G2_Presencas_${key}.pdf`);
+    docPdf.save(`G2_Presencas_${key}.pdf`);
   }
 
   // ====== Events ======
@@ -572,6 +749,10 @@
   document.getElementById("btnPdf").addEventListener("click", generateMonthlyPDF);
   document.getElementById("btnClearDay").addEventListener("click", clearSelectedDay);
   document.getElementById("btnForceReload").addEventListener("click", ()=>location.reload());
+
+  btnAddPerson.addEventListener("click", addPerson);
+  btnRemovePerson.addEventListener("click", removePerson);
+  newPersonNameEl.addEventListener("keydown", (e)=>{ if(e.key === "Enter") addPerson(); });
 
   monthSel.addEventListener("change", ()=>{
     render(); generateWhatsAppText();
