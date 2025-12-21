@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lista de Presença – G2</title>
+  <title>Lista de Presença – G2 (Versão Completa)</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#fff;color:#111}
     h1{font-size:20px;margin:0 0 6px 0}
@@ -25,7 +25,7 @@
     th.nameHead, td.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:260px;max-width:260px;border-right:2px solid #ddd}
     th.nameHead{background:#f2f2f2;z-index:5}
     td.name{font-weight:600}
-    td.day{min-width:38px}
+    td.day{min-width:38px; cursor: pointer;}
     .present{background:#d1f3dc}
     .statusLine{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ddd;border-radius:12px;background:#fff}
     .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
@@ -35,36 +35,35 @@
     th .sub{display:block;font-size:10px;color:#444;margin-top:2px}
     .manageGrid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:10px}
     .manageGrid .field{min-width:220px;flex:1}
-    .hint{font-size:12px;color:#555;margin-top:6px}
     @media (max-width:640px){th.nameHead, td.name{min-width:220px;max-width:220px}}
   </style>
 </head>
 <body>
 
 <h1>📋 Lista de Presença – G2 (Sincronizado)</h1>
-<div class="muted">Domingos: <b>EBD</b> (manhã) e <b>Culto</b> (noite).</div>
+<div class="muted">Domingos: <b>EBD</b> e <b>Culto</b>. Dados salvos em tempo real.</div>
 
 <div class="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
-  <span class="small" id="statusDetail">Verificando banco de dados.</span>
+  <span class="small" id="statusDetail">Iniciando sistema...</span>
 </div>
 
 <div class="topbar">
   <div class="field"><div class="small">Mês</div><select id="month"></select></div>
   <div class="field"><div class="small">Ano</div><select id="year"></select></div>
-  <div class="field"><div class="small">Dia (Relatório)</div><select id="daySelect"></select></div>
-  <div class="field" style="flex:1;min-width:220px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Buscar nome..."></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnGenerate" class="primary">Gerar Texto</button></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnCopy" class="primary">Copiar</button></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnPdf" class="primary">PDF</button></div>
-  <div class="field"><div class="small">&nbsp;</div><button id="btnClearDay" class="danger">Limpar Dia</button></div>
+  <div class="field"><div class="small">Dia (WhatsApp)</div><select id="daySelect"></select></div>
+  <div class="field" style="flex:1;min-width:200px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Filtrar nome..."></div>
+  <div class="field"><button id="btnGenerate" class="primary">Gerar Texto</button></div>
+  <div class="field"><button id="btnCopy" class="primary">Copiar</button></div>
+  <div class="field"><button id="btnPdf" class="primary">PDF Mensal</button></div>
+  <div class="field"><button id="btnClearDay" class="danger">Limpar Dia</button></div>
 </div>
 
 <div class="box">
   <div class="manageGrid">
-    <div class="field"><div class="small">Adicionar Pessoa</div><input id="newPersonName" type="text" placeholder="NOME COMPLETO"></div>
+    <div class="field"><div class="small">Novo Nome</div><input id="newPersonName" type="text" placeholder="Ex: JOÃO SILVA"></div>
     <div class="field"><button id="btnAddPerson" class="primary">Adicionar</button></div>
-    <div class="field"><div class="small">Remover</div><select id="removePersonSelect"></select></div>
+    <div class="field"><div class="small">Remover Pessoa</div><select id="removePersonSelect"></select></div>
     <div class="field"><button id="btnRemovePerson" class="danger">Remover</button></div>
   </div>
 </div>
@@ -72,7 +71,8 @@
 <div class="tableWrap"><table id="table"></table></div>
 
 <div class="box">
-  <textarea id="waText" readonly placeholder="O texto do WhatsApp aparecerá aqui..."></textarea>
+  <div class="small">Texto para WhatsApp:</div>
+  <textarea id="waText" readonly></textarea>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -100,23 +100,15 @@
   for(let y=now.getFullYear()-1; y<=now.getFullYear()+2; y++){ const o=document.createElement("option"); o.value=y; o.text=y; yearSel.appendChild(o); }
   yearSel.value = now.getFullYear();
 
+  let people = [], marks = {}, app, auth, db, unsubscribeMonth, unsubscribePeople, currentDocRef, peopleDocRef;
+
   function setStatus(kind, text, detail){ dot.className = "dot " + (kind==="ok"?"ok":kind==="bad"?"bad":"wait"); statusText.textContent = text; statusDetail.textContent = detail || ""; }
   function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
   function isSunday(y, m0, d){ return new Date(y, m0, d).getDay() === 0; }
   function monthKey(){ return yearSel.value + "-" + String(Number(monthSel.value)+1).padStart(2,"0"); }
   function normalize(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
-  function makePersonId(name){ return normalize(name).replace(/\s+/g,"-") + "-" + Math.random().toString(36).substr(2, 5); }
 
-  let people = [], marks = {}, app, auth, db, unsubscribeMonth, unsubscribePeople, currentDocRef, peopleDocRef;
-
-  // CORREÇÃO: Função segura para não sobrescrever dados
-  async function safeInitDoc(ref, initialData) {
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, initialData, { merge: true });
-    }
-  }
-
+  // Restaura a função de renderização completa
   function render(){
     const y = Number(yearSel.value), m = Number(monthSel.value), days = daysInMonth(y,m), q = normalize(searchEl.value);
     const filtered = people.filter(p => normalize(p.name).includes(q));
@@ -135,21 +127,76 @@
       html += `<tr><td class="name">${p.name}</td>`;
       cols.forEach(c => {
         const k = `${p.id}-${c.d}-${c.t}`, on = !!marks[k];
-        html += `<td class="day ${on?"present":""}" onclick="window.toggleMark('${p.id}',${c.d},'${c.t}')">${on?"✓":""}</td>`;
+        html += `<td class="day ${on?"present":""}" data-pid="${p.id}" data-d="${c.d}" data-t="${c.t}">${on?"✓":""}</td>`;
       });
       html += "</tr>";
     });
     table.innerHTML = html;
     
-    removePersonSelect.innerHTML = people.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+    removePersonSelect.innerHTML = '<option value="">Selecione para remover...</option>' + 
+      people.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+
+    // Adiciona cliques nas células
+    table.querySelectorAll("td.day").forEach(td => {
+      td.onclick = async () => {
+        const pid = td.dataset.pid, d = td.dataset.d, t = td.dataset.t;
+        const k = `${pid}-${d}-${t}`, fp = "marks." + k;
+        await updateDoc(currentDocRef, { [fp]: marks[k] ? deleteField() : true });
+      };
+    });
+
+    // Atualiza opções de dias para o WhatsApp
+    const currentDay = daySel.value;
+    daySel.innerHTML = "";
+    for(let d=1; d<=days; d++){
+      const o = document.createElement("option");
+      o.value = d; o.text = isSunday(y,m,d) ? `${d} (Dom)` : d;
+      daySel.appendChild(o);
+    }
+    daySel.value = currentDay || now.getDate();
   }
 
-  window.toggleMark = async (pid, d, t) => {
-    const k = `${pid}-${d}-${t}`, fp = "marks." + k;
-    await updateDoc(currentDocRef, { [fp]: marks[k] ? deleteField() : true });
-  };
+  // Funcionalidade de WhatsApp
+  function generateWhatsApp(){
+    const d = Number(daySel.value), y = yearSel.value, m = Number(monthSel.value);
+    const sunday = isSunday(y, m, d);
+    const formatList = (list) => list.length ? list.map((n, i) => `${i+1}. ${n}`).join("\n") : "Ninguém marcado.";
 
-  function attachListeners(){
+    if(!sunday){
+      const pres = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
+      waText.value = `📋 G2 - Presença (${d}/${m+1}/${y})\nTotal: ${pres.length}\n\n${formatList(pres)}`;
+    } else {
+      const ebd = people.filter(p => marks[`${p.id}-${d}-E`]).map(p => p.name).sort();
+      const culto = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
+      waText.value = `📋 G2 - Presença (${d}/${m+1}/${y})\n\n📌 EBD\nTotal: ${ebd.length}\n${formatList(ebd)}\n\n📌 CULTO\nTotal: ${culto.length}\n${formatList(culto)}`;
+    }
+  }
+
+  // Funcionalidade de PDF
+  function generatePDF(){
+    const { jsPDF } = window.jspdf;
+    const docPdf = new jsPDF({ unit:"pt" });
+    const y = yearSel.value, m = monthSel.value;
+    const body = [];
+    
+    for(let d=1; d<=daysInMonth(y,m); d++){
+      const date = `${d}/${Number(m)+1}/${y}`;
+      if(isSunday(y,m,d)){
+        const e = people.filter(p => marks[`${p.id}-${d}-E`]).length;
+        const c = people.filter(p => marks[`${p.id}-${d}-C`]).length;
+        body.push([date, "EBD", e]); body.push([date, "Culto", c]);
+      } else {
+        const c = people.filter(p => marks[`${p.id}-${d}-C`]).length;
+        body.push([date, "Culto", c]);
+      }
+    }
+    docPdf.text(`Relatório G2 - ${months[m]}/${y}`, 40, 40);
+    docPdf.autoTable({ head: [['Data', 'Tipo', 'Total']], body, startY: 60 });
+    docPdf.save(`G2_${months[m]}_${y}.pdf`);
+  }
+
+  // Listeners do Firebase
+  async function attachListeners(){
     if(unsubscribePeople) unsubscribePeople();
     peopleDocRef = doc(db, "presencas_g2_meta", "people");
     unsubscribePeople = onSnapshot(peopleDocRef, snap => {
@@ -159,13 +206,18 @@
 
     if(unsubscribeMonth) unsubscribeMonth();
     currentDocRef = doc(db, "presencas_g2", monthKey());
-    unsubscribeMonth = onSnapshot(currentDocRef, snap => {
-      if(snap.exists()) marks = snap.data().marks || {};
-      else { marks = {}; safeInitDoc(currentDocRef, { marks: {} }); }
+    unsubscribeMonth = onSnapshot(currentDocRef, async snap => {
+      if(snap.exists()) {
+        marks = snap.data().marks || {};
+      } else {
+        marks = {};
+        await setDoc(currentDocRef, { marks: {} }, { merge: true });
+      }
       render();
     });
   }
 
+  // Inicialização
   (async ()=>{
     try {
       app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
@@ -176,9 +228,37 @@
     } catch(e) { setStatus("bad","Erro","Falha na conexão."); }
   })();
 
+  // Eventos de Botão
+  document.getElementById("btnGenerate").onclick = generateWhatsApp;
   document.getElementById("btnCopy").onclick = () => { waText.select(); document.execCommand("copy"); alert("Copiado!"); };
-  document.getElementById("btnForceReload").onclick = () => location.reload();
+  document.getElementById("btnPdf").onclick = generatePDF;
+  document.getElementById("btnClearDay").onclick = async () => {
+    if(!confirm("Limpar dia atual?")) return;
+    const d = daySel.value, patch = {};
+    people.forEach(p => { 
+      patch[`marks.${p.id}-${d}-C`] = deleteField(); 
+      patch[`marks.${p.id}-${d}-E`] = deleteField(); 
+    });
+    await updateDoc(currentDocRef, patch);
+  };
+
+  document.getElementById("btnAddPerson").onclick = async () => {
+    const n = newPersonNameEl.value.trim().toUpperCase();
+    if(!n) return;
+    const newPeople = [...people, { id: normalize(n) + "-" + Date.now(), name: n }].sort((a,b)=>a.name.localeCompare(b.name));
+    await setDoc(peopleDocRef, { people: newPeople }, { merge: true });
+    newPersonNameEl.value = "";
+  };
+
+  document.getElementById("btnRemovePerson").onclick = async () => {
+    const id = removePersonSelect.value;
+    if(!id || !confirm("Remover esta pessoa?")) return;
+    const newPeople = people.filter(p => p.id !== id);
+    await setDoc(peopleDocRef, { people: newPeople }, { merge: true });
+  };
+
   monthSel.onchange = yearSel.onchange = () => attachListeners();
+  searchEl.oninput = () => render();
 </script>
 </body>
 </html>
