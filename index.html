@@ -85,7 +85,7 @@
 
 <div class="statusLine" id="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
-  <span class="small" id="statusDetail">Aguardando configuração do Firebase.</span>
+  <span class="small" id="statusDetail">Aguardando autenticação.</span>
 </div>
 
 <div class="topbar">
@@ -157,7 +157,7 @@
     </div>
   </div>
   <div class="hint">
-    * A lista de pessoas é sincronizada no Firebase.
+    * Se aparecer “Sem acesso às pessoas”, é regra do Firestore bloqueando a coleção <b>presencas_g2_meta</b>. A lista padrão continua aparecendo.
   </div>
 </div>
 
@@ -168,7 +168,7 @@
 <div class="box">
   <div class="small" style="margin-bottom:6px;">Texto pronto para compartilhar no WhatsApp</div>
   <textarea id="waText" readonly></textarea>
-  <div class="small" style="margin-top:8px;">Dica: clique em “Copiar” e cole no grupo/conversa.</div>
+  <div class="small" style="margin-top:8px;">Dica: clique em “Copiar” e cole no WhatsApp.</div>
 </div>
 
 <!-- jsPDF (PDF no navegador) -->
@@ -188,9 +188,7 @@
 
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import {
-    getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField
-  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
   // ====== UI ======
   const monthSel = document.getElementById("month");
@@ -270,7 +268,7 @@
     return (base || "pessoa") + "-" + h.slice(0,8);
   }
 
-  // ====== Pessoas (Firestore) ======
+  // ====== LISTA PADRÃO (RESTaurada) ======
   const defaultPeopleNames = [
     "DEBORA MARGARETE C. SANTOS","AGUINALDO BARBOSA","ANNA AMÉLIA S. CAMARGO",
     "CAMILA CRISTINE DOS SANTOS","CAMILA VENTURA SIMÃO MACEDO","CARLA BEATRICE FERREIRA PINTO",
@@ -284,9 +282,17 @@
     "YASMIN FERREIRA VIEIRA SOARES","ANDREIA SILVA GONÇALVES",
     "CILENE CRISTINA S. BARBOSA","GILBERTO DOS SANTOS"
   ];
+  const seedPeople = defaultPeopleNames.map(n => ({ id: makePersonId(n), name: n }));
 
-  let people = [];
+  // people sempre começa com a lista padrão (NÃO some nunca)
+  let people = seedPeople.slice();
   let peopleUnsub = null;
+
+  function setStatus(kind, text, detail){
+    dot.className = "dot " + (kind === "ok" ? "ok" : kind === "bad" ? "bad" : "wait");
+    statusText.textContent = text;
+    statusDetail.textContent = detail || "";
+  }
 
   function getFilteredPeople(){
     const q = normalize(searchEl.value);
@@ -296,13 +302,6 @@
 
   function refreshRemoveSelect(){
     removePersonSelect.innerHTML = "";
-    if(people.length === 0){
-      const o = document.createElement("option");
-      o.value = "";
-      o.text = "Carregando...";
-      removePersonSelect.appendChild(o);
-      return;
-    }
     const sorted = people.slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
     for(const p of sorted){
       const o=document.createElement("option");
@@ -312,7 +311,6 @@
     }
   }
 
-  // ====== Colunas ======
   function buildColumns(){
     const y = Number(yearSel.value);
     const m = Number(monthSel.value);
@@ -339,28 +337,16 @@
   let marks = {};
   let migratedThisMonth = false;
 
-  function setStatus(kind, text, detail){
-    dot.className = "dot " + (kind === "ok" ? "ok" : kind === "bad" ? "bad" : "wait");
-    statusText.textContent = text;
-    statusDetail.textContent = detail || "";
-  }
-
-  function isConfigured(){
-    return firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "COLE_AQUI";
+  async function ensureDocExists(ref, base){
+    await setDoc(ref, base || {}, { merge: true });
   }
 
   async function initFirebase(){
-    if(!isConfigured()){
-      setStatus("bad","Firebase não configurado","Cole o firebaseConfig no topo do arquivo e publique novamente.");
-      return;
-    }
-
     try{
+      setStatus("wait","Autenticando…","Entrando de forma anônima para sincronizar.");
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
       db = getFirestore(app);
-
-      setStatus("wait","Autenticando…","Entrando de forma anônima para permitir sincronização.");
 
       await signInAnonymously(auth);
 
@@ -373,18 +359,13 @@
           setStatus("wait","Desconectado","Reconectando…");
         }
       });
-
     }catch(e){
       console.error(e);
       setStatus("bad","Erro ao conectar","Verifique firebaseConfig, Auth anônimo e Firestore.");
     }
   }
 
-  async function ensureDocExists(ref, base){
-    await setDoc(ref, base || {}, { merge: true });
-  }
-
-  // ====== Pessoas: cria padrão SOMENTE se estiver vazio ======
+  // ====== Pessoas: doc fixo ======
   function attachPeopleListener(){
     if(peopleUnsub) peopleUnsub();
     peopleDocRef = doc(db, "presencas_g2_meta", "people");
@@ -393,25 +374,36 @@
       const data = snap.data() || {};
       const arr = Array.isArray(data.people) ? data.people : [];
 
-      if(!snap.exists() || arr.length === 0){
-        const seed = defaultPeopleNames.map(n=>({ id: makePersonId(n), name: n }));
+      // se não existe, cria com seed
+      if(!snap.exists()){
         try{
-          await ensureDocExists(peopleDocRef, { people: seed, schemaVersion: 1 });
+          await ensureDocExists(peopleDocRef, { people: seedPeople, schemaVersion: 1 });
         }catch(e){}
-        people = seed.slice();
-      }else{
+      }
+
+      if(arr.length > 0){
         people = arr
           .filter(x => x && typeof x.name === "string" && typeof x.id === "string")
           .map(x => ({ id: x.id, name: x.name.trim() }))
           .filter(x => x.name.length > 0);
+
+        if(people.length === 0) people = seedPeople.slice();
+      }else{
+        // mantém seed (não some)
+        people = people.length ? people : seedPeople.slice();
       }
 
       refreshRemoveSelect();
       render();
       generateWhatsAppText();
     }, (err)=>{
+      // ✅ aqui não “zera” nada: mantém a lista padrão visível
       console.error(err);
-      setStatus("bad","Sem acesso às pessoas","Confira as regras do Firestore.");
+      setStatus("bad","Sem acesso às pessoas","Confira as regras do Firestore (coleção presencas_g2_meta).");
+      people = seedPeople.slice();
+      refreshRemoveSelect();
+      render();
+      generateWhatsAppText();
     });
   }
 
@@ -423,48 +415,43 @@
     const exists = people.some(p => p.id === id || normalize(p.name) === normalize(name));
     if(exists){ alert("Essa pessoa já existe na lista."); return; }
 
-    const newList = people.concat([{ id, name }])
-      .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+    const newList = people.concat([{ id, name }]).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
 
+    // sempre atualiza local (mesmo se Firebase falhar)
+    people = newList;
+    refreshRemoveSelect();
+    render();
+    generateWhatsAppText();
+    newPersonNameEl.value = "";
+
+    // tenta salvar no Firebase (se as regras permitirem)
     try{
-      await updateDoc(peopleDocRef, { people: newList });
-      newPersonNameEl.value = "";
+      if(peopleDocRef) await updateDoc(peopleDocRef, { people: newList });
     }catch(e){
       console.error(e);
-      alert("Falha ao adicionar. Verifique regras do Firestore.");
+      alert("Adicionou no seu aparelho, mas não conseguiu salvar no Firebase (regras do Firestore).");
     }
   }
 
   async function removePerson(){
     const id = removePersonSelect.value;
     if(!id){ alert("Selecione uma pessoa para remover."); return; }
-
     const p = people.find(x => x.id === id);
     if(!p){ alert("Pessoa não encontrada."); return; }
-
     if(!confirm(`Confirma remover: ${p.name}?`)) return;
 
     const newList = people.filter(x => x.id !== id);
+    people = newList;
+    refreshRemoveSelect();
+    render();
+    generateWhatsAppText();
 
     try{
-      await updateDoc(peopleDocRef, { people: newList });
-      await clearPersonMarksCurrentMonth(id);
+      if(peopleDocRef) await updateDoc(peopleDocRef, { people: newList });
     }catch(e){
       console.error(e);
-      alert("Falha ao remover. Verifique regras do Firestore.");
+      alert("Removeu no seu aparelho, mas não conseguiu salvar no Firebase (regras do Firestore).");
     }
-  }
-
-  async function clearPersonMarksCurrentMonth(personId){
-    if(!currentDocRef) return;
-    const patch = {};
-    for(const k of Object.keys(marks)){
-      if(k.startsWith(personId + "-")){
-        patch["marks." + k] = deleteField();
-      }
-    }
-    if(Object.keys(patch).length === 0) return;
-    try{ await updateDoc(currentDocRef, patch); }catch(e){}
   }
 
   // ====== CORREÇÃO PRINCIPAL: schemaVersion + NÃO apagar chaves antigas ======
@@ -475,14 +462,13 @@
     currentDocRef = doc(db, "presencas_g2", key);
     migratedThisMonth = false;
 
-    // cria base sem sobrescrever
     ensureDocExists(currentDocRef, { marks: {}, schemaVersion: 2 }).catch(()=>{});
 
     unsubscribe = onSnapshot(currentDocRef, async (snap)=>{
       const data = snap.data() || {};
       marks = (data.marks || {});
-
       const ver = Number(data.schemaVersion || 1);
+
       if(!migratedThisMonth && ver < 2){
         migratedThisMonth = true;
         await tryMigrateOldIndexMarks(); // migra SEM deletar antigos
@@ -493,16 +479,17 @@
       generateWhatsAppText();
     }, (err)=>{
       console.error(err);
-      setStatus("bad","Sem acesso ao Firestore","Confira as regras do Firestore.");
+      setStatus("bad","Sem acesso ao Firestore","Confira as regras do Firestore (coleção presencas_g2).");
     });
   }
 
-  // Migra chaves antigas (índice) para chaves por personId, SEM APAGAR as antigas
   async function tryMigrateOldIndexMarks(){
     const keys = Object.keys(marks || {});
     const oldKeys = keys.filter(k => /^\d+\-\d+(\-[EC])?$/.test(k) || /^\d+\-\d+$/.test(k));
     if(oldKeys.length === 0) return;
-    if(!people || people.length === 0) return;
+
+    // usa o seed como “ordem antiga” padrão (evita sumiços)
+    const base = (people && people.length) ? people : seedPeople;
 
     const patch = {};
     let changed = false;
@@ -513,45 +500,34 @@
       const day = Number(parts[1]);
       const type = (parts[2] === "E" || parts[2] === "C") ? parts[2] : "C";
 
-      const person = people[idx];
+      const person = base[idx];
       if(!person) continue;
 
       const newKey = `${person.id}-${day}-${type}`;
       if(marks[k] && !marks[newKey]){
-        patch["marks." + newKey] = true; // copia pro novo formato
+        patch["marks." + newKey] = true;
         changed = true;
       }
       // ✅ NÃO APAGA o antigo
     }
 
     if(!changed) return;
-
-    try{
-      await updateDoc(currentDocRef, patch);
-    }catch(e){
-      console.warn("Migração não aplicada:", e);
-    }
+    try{ await updateDoc(currentDocRef, patch); }catch(e){ console.warn("Migração falhou:", e); }
   }
 
   function markKey(personId, d, type){ return `${personId}-${d}-${type}`; }
 
   async function toggleMark(personId, d, type){
-    if(!currentDocRef){
-      alert("Ainda conectando…");
-      return;
-    }
+    if(!currentDocRef){ alert("Ainda conectando…"); return; }
     const k = markKey(personId,d,type);
     const fieldPath = "marks." + k;
 
     try{
-      if(marks[k]){
-        await updateDoc(currentDocRef, { [fieldPath]: deleteField() });
-      }else{
-        await updateDoc(currentDocRef, { [fieldPath]: true });
-      }
+      if(marks[k]) await updateDoc(currentDocRef, { [fieldPath]: deleteField() });
+      else await updateDoc(currentDocRef, { [fieldPath]: true });
     }catch(e){
       console.error(e);
-      alert("Falha ao salvar. Verifique conexão/regras do Firestore.");
+      alert("Falha ao salvar. Verifique regras do Firestore.");
     }
   }
 
@@ -578,7 +554,7 @@
       await updateDoc(currentDocRef, patch);
     }catch(e){
       console.error(e);
-      alert("Falha ao limpar o dia. Verifique conexão/regras.");
+      alert("Falha ao limpar. Verifique regras do Firestore.");
     }
   }
 
@@ -641,22 +617,17 @@
         return;
       }
       const linhas = presentes.map((nome, idx)=> (idx+1) + ". " + nome).join("\n");
-      waText.value =
-        `📋 G2 — Presença (${dd}/${mm}/${y})\n` +
-        `Total: ${presentes.length}\n\n` +
-        linhas;
+      waText.value = `📋 G2 — Presença (${dd}/${mm}/${y})\nTotal: ${presentes.length}\n\n${linhas}`;
       return;
     }
 
     const ebd = getPresentNamesForDay(d, "E");
     const culto = getPresentNamesForDay(d, "C");
 
-    const ebdTxt = (ebd.length === 0)
-      ? "Nenhuma presença marcada."
+    const ebdTxt = (ebd.length === 0) ? "Nenhuma presença marcada."
       : `Total: ${ebd.length}\n\n` + ebd.map((n,i)=>`${i+1}. ${n}`).join("\n");
 
-    const cultoTxt = (culto.length === 0)
-      ? "Nenhuma presença marcada."
+    const cultoTxt = (culto.length === 0) ? "Nenhuma presença marcada."
       : `Total: ${culto.length}\n\n` + culto.map((n,i)=>`${i+1}. ${n}`).join("\n");
 
     waText.value =
@@ -676,7 +647,6 @@
     }
   }
 
-  // ====== PDF mensal ======
   function generateMonthlyPDF(){
     if(!window.jspdf || !window.jspdf.jsPDF){
       alert("Biblioteca de PDF não carregou. Recarregue a página.");
@@ -727,17 +697,7 @@
       body,
       styles: { font: "helvetica", fontSize: 9, cellPadding: 4, valign: "top" },
       headStyles: { fontStyle: "bold" },
-      columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 90 },
-        2: { cellWidth: 40, halign: "center" },
-        3: { cellWidth: 330 }
-      },
-      didDrawPage: (data) => {
-        const pageCount = docPdf.internal.getNumberOfPages();
-        docPdf.setFontSize(9);
-        docPdf.text(`Página ${data.pageNumber} de ${pageCount}`, 40, 820);
-      }
+      columnStyles: { 0:{cellWidth:70}, 1:{cellWidth:90}, 2:{cellWidth:40, halign:"center"}, 3:{cellWidth:330} }
     });
 
     docPdf.save(`G2_Presencas_${key}.pdf`);
@@ -754,20 +714,15 @@
   btnRemovePerson.addEventListener("click", removePerson);
   newPersonNameEl.addEventListener("keydown", (e)=>{ if(e.key === "Enter") addPerson(); });
 
-  monthSel.addEventListener("change", ()=>{
-    render(); generateWhatsAppText();
-    if(db) attachMonthListener();
-  });
-  yearSel.addEventListener("change", ()=>{
-    render(); generateWhatsAppText();
-    if(db) attachMonthListener();
-  });
+  monthSel.addEventListener("change", ()=>{ render(); generateWhatsAppText(); if(db) attachMonthListener(); });
+  yearSel.addEventListener("change", ()=>{ render(); generateWhatsAppText(); if(db) attachMonthListener(); });
   daySel.addEventListener("change", generateWhatsAppText);
   searchEl.addEventListener("input", render);
 
   // init UI
   refreshDaySelect();
   daySel.value = String(now.getDate());
+  refreshRemoveSelect();
   render();
   generateWhatsAppText();
 
