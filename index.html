@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lista de Presença – G2 (Versão Completa)</title>
+  <title>Lista de Presença – G2</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#fff;color:#111}
     h1{font-size:20px;margin:0 0 6px 0}
@@ -12,7 +12,6 @@
     button{cursor:pointer}
     button.primary{border-color:#111}
     button.danger{border-color:#a33;color:#a33}
-    button.gray{border-color:#777;color:#333}
     .topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:12px;border:1px solid #ddd;border-radius:12px;background:#fafafa;margin:12px 0}
     .field{display:flex;flex-direction:column;gap:6px}
     .box{border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff;margin-top:12px}
@@ -23,9 +22,8 @@
     th,td{border:1px solid #ddd;padding:6px;text-align:center;white-space:nowrap}
     th{background:#f2f2f2;font-size:12px;position:sticky;top:0;z-index:3}
     th.nameHead, td.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:260px;max-width:260px;border-right:2px solid #ddd}
-    th.nameHead{background:#f2f2f2;z-index:5}
     td.name{font-weight:600}
-    td.day{min-width:38px; cursor: pointer;}
+    td.day{min-width:38px; cursor:pointer;}
     .present{background:#d1f3dc}
     .statusLine{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ddd;border-radius:12px;background:#fff}
     .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
@@ -40,28 +38,28 @@
 </head>
 <body>
 
-<h1>📋 Lista de Presença – G2 (Sincronizado)</h1>
-<div class="muted">Domingos: <b>EBD</b> e <b>Culto</b>. Dados salvos em tempo real.</div>
+<h1>📋 Lista de Presença – G2</h1>
+<div class="muted">Relatório PDF com marcação "X" conforme padrão oficial.</div>
 
 <div class="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
-  <span class="small" id="statusDetail">Iniciando sistema...</span>
+  <span class="small" id="statusDetail">Verificando banco de dados.</span>
 </div>
 
 <div class="topbar">
   <div class="field"><div class="small">Mês</div><select id="month"></select></div>
   <div class="field"><div class="small">Ano</div><select id="year"></select></div>
   <div class="field"><div class="small">Dia (WhatsApp)</div><select id="daySelect"></select></div>
-  <div class="field" style="flex:1;min-width:200px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Filtrar nome..."></div>
+  <div class="field" style="flex:1;min-width:200px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Filtrar por nome..."></div>
   <div class="field"><button id="btnGenerate" class="primary">Gerar Texto</button></div>
   <div class="field"><button id="btnCopy" class="primary">Copiar</button></div>
-  <div class="field"><button id="btnPdf" class="primary">PDF Mensal</button></div>
+  <div class="field"><button id="btnPdf" class="primary">Gerar PDF Mensal</button></div>
   <div class="field"><button id="btnClearDay" class="danger">Limpar Dia</button></div>
 </div>
 
 <div class="box">
   <div class="manageGrid">
-    <div class="field"><div class="small">Novo Nome</div><input id="newPersonName" type="text" placeholder="Ex: JOÃO SILVA"></div>
+    <div class="field"><div class="small">Novo Nome</div><input id="newPersonName" type="text" placeholder="NOME COMPLETO"></div>
     <div class="field"><button id="btnAddPerson" class="primary">Adicionar</button></div>
     <div class="field"><div class="small">Remover Pessoa</div><select id="removePersonSelect"></select></div>
     <div class="field"><button id="btnRemovePerson" class="danger">Remover</button></div>
@@ -71,8 +69,7 @@
 <div class="tableWrap"><table id="table"></table></div>
 
 <div class="box">
-  <div class="small">Texto para WhatsApp:</div>
-  <textarea id="waText" readonly></textarea>
+  <textarea id="waText" readonly placeholder="Texto do WhatsApp aparecerá aqui..."></textarea>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -102,50 +99,85 @@
 
   let people = [], marks = {}, app, auth, db, unsubscribeMonth, unsubscribePeople, currentDocRef, peopleDocRef;
 
+  const membrosInfo = {
+    "DEBORA MARGARETE C. SANTOS": { sit: "Cnd.Bat", tel: "13981452140" },
+    "AGUINALDO BARBOSA": { sit: "Membro", tel: "13996199250" },
+    "ANNA AMÉLIA S. CAMARGO": { sit: "Membro", tel: "1334681763" },
+    "CAMILA CRISTINE DOS SANTOS": { sit: "Membro", tel: "1334621945" },
+    "CARLA BEATRICE FERREIRA PINTO": { sit: "Membro", tel: "5513991588330" },
+    "GABRIEL SOUZA DOS SANTOS": { sit: "Membro", tel: "013997711332" },
+    "GABRIELA RICARTE SANTOS": { sit: "Membro", tel: "13981212142" },
+    "GLEISON CORREIA": { sit: "Membro", tel: "1333729245" },
+    "JORGE NICOLÁS PEREDO PINTO": { sit: "Membro", tel: "13991590807" },
+    "JOSEFA MARIA DE JESUS CAMPOS": { sit: "Membro", tel: "5513991828253" },
+    "JOSÉ CARLOS MENEZES SANTOS": { sit: "Membro", tel: "1330276314" },
+    "JOÃO HENRIQUE M. S. CORREIA": { sit: "Membro", tel: "33729245" },
+    "KALEU DA SILVA OLIVEIRA": { sit: "Membro", tel: "13988808106" },
+    "KARINA S. O. PEDRINI": { sit: "Membro", tel: "2222107690" },
+    "LUDMILA MATHIAS": { sit: "Membro", tel: "1333729245" },
+    "NIVALDO DE JESUS SOARES": { sit: "Membro", tel: "13974099355" },
+    "PATRÍCIA SANTOS DE LIMA": { sit: "Membro", tel: "13996714581" },
+    "RACHEL RICARTE FREITAS": { sit: "Membro", tel: "013981212142" },
+    "ROMULO PEREDO MURTHA": { sit: "Membro", tel: "13991590807" },
+    "SAMUEL CARLOS G. M. MENEZES": { sit: "Membro", tel: "13991210262" },
+    "SOFIA JESUS DOS SANTOS": { sit: "Membro", tel: "13988133046" },
+    "VALENTINA PEREDO PINTO": { sit: "Membro", tel: "13991588330" },
+    "VERA LUCIA CONCEIÇÃO SANTOS": { sit: "Membro", tel: "1388326860" },
+    "WALTER CAMPOS FERREIRA": { sit: "Membro", tel: "5513981782007" },
+    "WILLIAN JESUS SANTOS": { sit: "Membro", tel: "13981714070" },
+    "YASMIN FERREIRA VIEIRA SOARES": { sit: "Membro", tel: "13992049851" },
+    "ANDREIA SILVA GONÇALVES": { sit: "Visitante", tel: "13988330979" },
+    "CILENE CRISTINA S. BARBOSA": { sit: "Visitante", tel: "13996282667" },
+    "GILBERTO DOS SANTOS": { sit: "Visitante", tel: "1388326860" }
+  };
+
   function setStatus(kind, text, detail){ dot.className = "dot " + (kind==="ok"?"ok":kind==="bad"?"bad":"wait"); statusText.textContent = text; statusDetail.textContent = detail || ""; }
   function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
   function isSunday(y, m0, d){ return new Date(y, m0, d).getDay() === 0; }
   function monthKey(){ return yearSel.value + "-" + String(Number(monthSel.value)+1).padStart(2,"0"); }
   function normalize(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
+  function markKey(pid, d, t){ return `${pid}-${d}-${t}`; }
 
-  // Restaura a função de renderização completa
+  async function ensureDocExists(ref){
+    const snap = await getDoc(ref);
+    if(!snap.exists()) await setDoc(ref, { marks: {} }, { merge: true });
+  }
+
   function render(){
     const y = Number(yearSel.value), m = Number(monthSel.value), days = daysInMonth(y,m), q = normalize(searchEl.value);
     const filtered = people.filter(p => normalize(p.name).includes(q));
     
-    let html = "<tr><th class='nameHead'>Nome</th>";
+    let html = "<tr><th class='nameHead'>Pessoa / Situação</th>";
     const cols = [];
     for(let d=1; d<=days; d++){
       if(isSunday(y,m,d)){
-        cols.push({d, t:"E", label:d, sub:"EBD"}); cols.push({d, t:"C", label:d, sub:"Culto"});
+        cols.push({d, t:"E", label:d, sub:"ED"}); cols.push({d, t:"C", label:d, sub:"Culto"});
       } else { cols.push({d, t:"C", label:d}); }
     }
     cols.forEach(c => html += `<th>${c.label}${c.sub?`<span class="sub">${c.sub}</span>`:""}</th>`);
     html += "</tr>";
 
     filtered.forEach(p => {
-      html += `<tr><td class="name">${p.name}</td>`;
+      const info = membrosInfo[p.name] || { sit: "Membro" };
+      html += `<tr><td class="name">${p.name}<br><small style="color:blue">${info.sit}</small></td>`;
       cols.forEach(c => {
-        const k = `${p.id}-${c.d}-${c.t}`, on = !!marks[k];
-        html += `<td class="day ${on?"present":""}" data-pid="${p.id}" data-d="${c.d}" data-t="${c.t}">${on?"✓":""}</td>`;
+        const k = markKey(p.id, c.d, c.t), on = !!marks[k];
+        html += `<td class="day ${on?"present":""}" data-pid="${p.id}" data-d="${c.d}" data-t="${c.t}">${on?"X":""}</td>`;
       });
       html += "</tr>";
     });
     table.innerHTML = html;
     
-    removePersonSelect.innerHTML = '<option value="">Selecione para remover...</option>' + 
-      people.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
-
-    // Adiciona cliques nas células
     table.querySelectorAll("td.day").forEach(td => {
       td.onclick = async () => {
         const pid = td.dataset.pid, d = td.dataset.d, t = td.dataset.t;
-        const k = `${pid}-${d}-${t}`, fp = "marks." + k;
+        const k = markKey(pid,d,t), fp = "marks." + k;
         await updateDoc(currentDocRef, { [fp]: marks[k] ? deleteField() : true });
       };
     });
 
-    // Atualiza opções de dias para o WhatsApp
+    removePersonSelect.innerHTML = '<option value="">Selecione...</option>' + people.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+    
     const currentDay = daySel.value;
     daySel.innerHTML = "";
     for(let d=1; d<=days; d++){
@@ -156,46 +188,57 @@
     daySel.value = currentDay || now.getDate();
   }
 
-  // Funcionalidade de WhatsApp
   function generateWhatsApp(){
     const d = Number(daySel.value), y = yearSel.value, m = Number(monthSel.value);
     const sunday = isSunday(y, m, d);
-    const formatList = (list) => list.length ? list.map((n, i) => `${i+1}. ${n}`).join("\n") : "Ninguém marcado.";
-
+    const format = (l) => l.length ? l.map((n, i) => `${i+1}. ${n}`).join("\n") : "Ninguém marcado.";
     if(!sunday){
-      const pres = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
-      waText.value = `📋 G2 - Presença (${d}/${m+1}/${y})\nTotal: ${pres.length}\n\n${formatList(pres)}`;
+      const p = people.filter(x => marks[markKey(x.id,d,"C")]).map(x => x.name).sort();
+      waText.value = `📋 G2 - Presença (${d}/${m+1}/${y})\nTotal: ${p.length}\n\n${format(p)}`;
     } else {
-      const ebd = people.filter(p => marks[`${p.id}-${d}-E`]).map(p => p.name).sort();
-      const culto = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
-      waText.value = `📋 G2 - Presença (${d}/${m+1}/${y})\n\n📌 EBD\nTotal: ${ebd.length}\n${formatList(ebd)}\n\n📌 CULTO\nTotal: ${culto.length}\n${formatList(culto)}`;
+      const e = people.filter(x => marks[markKey(x.id,d,"E")]).map(x => x.name).sort();
+      const c = people.filter(x => marks[markKey(x.id,d,"C")]).map(x => x.name).sort();
+      waText.value = `📋 G2 - Presença (${d}/${m+1}/${y})\n\n📌 EBD\nTotal: ${e.length}\n${format(e)}\n\n📌 CULTO\nTotal: ${c.length}\n${format(c)}`;
     }
   }
 
-  // Funcionalidade de PDF
-  function generatePDF(){
+  function generateMonthlyPDF() {
     const { jsPDF } = window.jspdf;
-    const docPdf = new jsPDF({ unit:"pt" });
-    const y = yearSel.value, m = monthSel.value;
-    const body = [];
+    const docPdf = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+    const y = Number(yearSel.value), m0 = Number(monthSel.value), days = daysInMonth(y, m0);
     
-    for(let d=1; d<=daysInMonth(y,m); d++){
-      const date = `${d}/${Number(m)+1}/${y}`;
-      if(isSunday(y,m,d)){
-        const e = people.filter(p => marks[`${p.id}-${d}-E`]).length;
-        const c = people.filter(p => marks[`${p.id}-${d}-C`]).length;
-        body.push([date, "EBD", e]); body.push([date, "Culto", c]);
-      } else {
-        const c = people.filter(p => marks[`${p.id}-${d}-C`]).length;
-        body.push([date, "Culto", c]);
+    docPdf.setFontSize(10); docPdf.setFont("helvetica", "bold");
+    docPdf.text("IGREJA CRISTA MARANATA", 40, 30);
+    docPdf.setFont("helvetica", "normal"); docPdf.text("Chamada do Grupo de Assistência", 40, 45);
+    docPdf.text(`Emissão: ${new Date().toLocaleDateString("pt-BR")}`, 700, 30);
+    docPdf.setFont("helvetica", "bold"); docPdf.text(`Grupo de Assistência: G2 - Romulo Peredo`, 40, 70);
+    docPdf.text(`Referência: ${months[m0]} / ${y}`, 700, 70);
+
+    const head = ["Pessoa / Situação", "Telefone"];
+    for (let d = 1; d <= days; d++) head.push(isSunday(y, m0, d) ? `ED ${d}` : `${d}`);
+
+    const body = people.map((p, i) => {
+      const info = membrosInfo[p.name] || { sit: "Membro", tel: "" };
+      const row = [ `${i+1}. ${p.name}\n(${info.sit})`, info.tel ];
+      for (let d = 1; d <= days; d++) {
+        if (isSunday(y, m0, d)) {
+          const e = marks[markKey(p.id, d, "E")] ? "X" : "";
+          const c = marks[markKey(p.id, d, "C")] ? "X" : "";
+          row.push(`${e}\n${c}`);
+        } else row.push(marks[markKey(p.id, d, "C")] ? "X" : "");
       }
-    }
-    docPdf.text(`Relatório G2 - ${months[m]}/${y}`, 40, 40);
-    docPdf.autoTable({ head: [['Data', 'Tipo', 'Total']], body, startY: 60 });
-    docPdf.save(`G2_${months[m]}_${y}.pdf`);
+      return row;
+    });
+
+    docPdf.autoTable({
+      startY: 90, head: [head], body: body, theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 2, halign: 'center', valign: 'middle' },
+      columnStyles: { 0: { halign: 'left', cellWidth: 140 }, 1: { cellWidth: 60 } },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] }
+    });
+    docPdf.save(`Relatorio_G2_${monthKey()}.pdf`);
   }
 
-  // Listeners do Firebase
   async function attachListeners(){
     if(unsubscribePeople) unsubscribePeople();
     peopleDocRef = doc(db, "presencas_g2_meta", "people");
@@ -206,18 +249,13 @@
 
     if(unsubscribeMonth) unsubscribeMonth();
     currentDocRef = doc(db, "presencas_g2", monthKey());
-    unsubscribeMonth = onSnapshot(currentDocRef, async snap => {
-      if(snap.exists()) {
-        marks = snap.data().marks || {};
-      } else {
-        marks = {};
-        await setDoc(currentDocRef, { marks: {} }, { merge: true });
-      }
+    await ensureDocExists(currentDocRef);
+    unsubscribeMonth = onSnapshot(currentDocRef, snap => {
+      if(snap.exists()) marks = snap.data().marks || {};
       render();
     });
   }
 
-  // Inicialização
   (async ()=>{
     try {
       app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
@@ -228,33 +266,26 @@
     } catch(e) { setStatus("bad","Erro","Falha na conexão."); }
   })();
 
-  // Eventos de Botão
   document.getElementById("btnGenerate").onclick = generateWhatsApp;
   document.getElementById("btnCopy").onclick = () => { waText.select(); document.execCommand("copy"); alert("Copiado!"); };
-  document.getElementById("btnPdf").onclick = generatePDF;
+  document.getElementById("btnPdf").onclick = generateMonthlyPDF;
   document.getElementById("btnClearDay").onclick = async () => {
     if(!confirm("Limpar dia atual?")) return;
     const d = daySel.value, patch = {};
-    people.forEach(p => { 
-      patch[`marks.${p.id}-${d}-C`] = deleteField(); 
-      patch[`marks.${p.id}-${d}-E`] = deleteField(); 
-    });
+    people.forEach(p => { patch[`marks.${p.id}-${d}-C`] = deleteField(); patch[`marks.${p.id}-${d}-E`] = deleteField(); });
     await updateDoc(currentDocRef, patch);
   };
 
   document.getElementById("btnAddPerson").onclick = async () => {
-    const n = newPersonNameEl.value.trim().toUpperCase();
-    if(!n) return;
-    const newPeople = [...people, { id: normalize(n) + "-" + Date.now(), name: n }].sort((a,b)=>a.name.localeCompare(b.name));
-    await setDoc(peopleDocRef, { people: newPeople }, { merge: true });
+    const n = newPersonNameEl.value.trim().toUpperCase(); if(!n) return;
+    const newList = [...people, { id: normalize(n) + "-" + Date.now(), name: n }].sort((a,b)=>a.name.localeCompare(b.name));
+    await setDoc(peopleDocRef, { people: newList }, { merge: true });
     newPersonNameEl.value = "";
   };
 
   document.getElementById("btnRemovePerson").onclick = async () => {
-    const id = removePersonSelect.value;
-    if(!id || !confirm("Remover esta pessoa?")) return;
-    const newPeople = people.filter(p => p.id !== id);
-    await setDoc(peopleDocRef, { people: newPeople }, { merge: true });
+    const id = removePersonSelect.value; if(!id || !confirm("Remover?")) return;
+    await setDoc(peopleDocRef, { people: people.filter(p => p.id !== id) }, { merge: true });
   };
 
   monthSel.onchange = yearSel.onchange = () => attachListeners();
