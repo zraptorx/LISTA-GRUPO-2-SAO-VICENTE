@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lista de Presença – G2 (Com Backup)</title>
+  <title>Lista de Presença – G2</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#fff;color:#111}
     h1{font-size:20px;margin:0 0 6px 0}
@@ -22,8 +22,25 @@
     table{border-collapse:collapse;width:max-content;min-width:100%;margin-top:0}
     th,td{border:1px solid #ddd;padding:6px;text-align:center;white-space:nowrap}
     th{background:#f2f2f2;font-size:12px;position:sticky;top:0;z-index:3}
-    th.nameHead, td.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:260px;max-width:260px;border-right:2px solid #ddd}
-    td.name{font-weight:600; display: flex; justify-content: space-between; align-items: center;} /* Ajuste para o botão x */
+    
+    /* CORREÇÃO DA CÉLULA DE NOMES */
+    th.nameHead, td.name{
+      position:sticky;
+      left:0;
+      z-index:4;
+      background:#fff !important;
+      text-align:left;
+      min-width:260px;
+      max-width:260px;
+      border-right:2px solid #ddd;
+      /* Impede que o nome vaze da célula */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    th.nameHead{z-index:5; background:#f2f2f2 !important}
+    
+    td.name{font-weight:600; display: flex; justify-content: space-between; align-items: center;}
     td.day{min-width:38px; cursor:pointer;}
     .present{background:#d1f3dc}
     .statusLine{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ddd;border-radius:12px;background:#fff}
@@ -31,17 +48,24 @@
     .dot.ok{background:#16a34a}
     .dot.wait{background:#f59e0b}
     .dot.bad{background:#dc2626}
-    .btn-del{color: #a33; border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 5px; font-size: 14px;} /* Estilo do botão apagar */
+    .btn-del{color: #a33; border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 5px;}
   </style>
 </head>
 <body>
 
 <h1>📋 Lista de Presença – G2</h1>
-<div class="muted">Sistema com Proteção de Sincronização e Backup Manual.</div>
+<div class="muted">Os meses anteriores ficam salvos no banco de dados automaticamente. </div>
 
 <div class="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
   <span class="small" id="statusDetail">Verificando banco de dados.</span>
+</div>
+
+<div class="box">
+  <div style="display:flex; gap:10px">
+    <input type="text" id="newName" placeholder="NOME DO NOVO MEMBRO" style="flex:1">
+    <button id="btnAdd" class="primary">Adicionar</button>
+  </div>
 </div>
 
 <div class="topbar">
@@ -58,8 +82,9 @@
 <div class="tableWrap"><table id="table"></table></div>
 
 <div class="box">
-  <button id="btnGenerate" class="primary">Gerar Texto WhatsApp</button>
+  <button id="btnGenerate" class="primary">Gerar Texto</button>
   <button id="btnCopy" class="primary">Copiar</button>
+  <button id="btnSendWa" class="success">📱 Enviar WhatsApp</button>
   <button id="btnClearDay" class="danger">Limpar Dia</button>
   <textarea id="waText" readonly placeholder="Texto aparecerá aqui..."></textarea>
 </div>
@@ -79,114 +104,150 @@
 
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-  const monthSel = document.getElementById("month"), yearSel = document.getElementById("year"), daySel = document.getElementById("daySelect"), table = document.getElementById("table"), searchEl = document.getElementById("search"), waText = document.getElementById("waText"), dot = document.getElementById("dot"), statusText = document.getElementById("statusText"), statusDetail = document.getElementById("statusDetail");
+  const monthSel = document.getElementById("month"), yearSel = document.getElementById("year"), daySel = document.getElementById("daySelect"), table = document.getElementById("table"), searchEl = document.getElementById("search"), waText = document.getElementById("waText"), dot = document.getElementById("dot"), statusText = document.getElementById("statusText");
 
   const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  months.forEach((m,i)=>{ const o=document.createElement("option"); o.value=i; o.text=m; monthSel.appendChild(o); });
-  const now = new Date(); monthSel.value = now.getMonth();
-  for(let y=now.getFullYear()-1; y<=now.getFullYear()+2; y++){ const o=document.createElement("option"); o.value=y; o.text=y; yearSel.appendChild(o); }
-  yearSel.value = now.getFullYear();
+  months.forEach((m,i)=> monthSel.add(new Option(m,i)));
+  monthSel.value = new Date().getMonth();
+  for(let y=2024; y<=2026; y++) yearSel.add(new Option(y,y));
+  yearSel.value = new Date().getFullYear();
 
-  let people = [], marks = {}, app, auth, db, unsubscribeMonth, unsubscribePeople, currentDocRef, peopleDocRef;
+  let people = [], marks = {}, db, currentDocRef, peopleDocRef;
 
-  // Lógica de Sincronização Aprimorada
-  async function attachListeners(){
-    if(unsubscribePeople) unsubscribePeople();
-    peopleDocRef = doc(db, "presencas_g2_meta", "people");
-    unsubscribePeople = onSnapshot(peopleDocRef, snap => {
-      if(snap.exists()) people = snap.data().people || [];
-      render();
-    });
-
-    if(unsubscribeMonth) unsubscribeMonth();
-    const mKey = yearSel.value + "-" + String(Number(monthSel.value)+1).padStart(2,"0");
-    currentDocRef = doc(db, "presencas_g2", mKey);
-    
-    unsubscribeMonth = onSnapshot(currentDocRef, snap => {
-      marks = snap.exists() ? snap.data().marks || {} : {};
-      render();
-    });
+  function updateDayOptions() {
+    const days = new Date(yearSel.value, Number(monthSel.value)+1, 0).getDate();
+    const current = daySel.value;
+    daySel.innerHTML = "";
+    for(let d=1; d<=days; d++) daySel.add(new Option(d,d));
+    daySel.value = current <= days ? current : 1;
   }
 
-  // Backup Manual
+  async function attachListeners(){
+    updateDayOptions();
+    const mKey = `${yearSel.value}-${String(Number(monthSel.value)+1).padStart(2,"0")}`;
+    currentDocRef = doc(db, "presencas_g2", mKey);
+    peopleDocRef = doc(db, "presencas_g2_meta", "people");
+
+    onSnapshot(peopleDocRef, snap => { if(snap.exists()) people = snap.data().people || []; render(); });
+    onSnapshot(currentDocRef, snap => { marks = snap.exists() ? snap.data().marks || {} : {}; render(); });
+  }
+
+  function render(){
+    const days = new Date(yearSel.value, Number(monthSel.value)+1, 0).getDate();
+    const q = searchEl.value.toLowerCase();
+    let h = "<tr><th class='nameHead'>Nome</th>";
+    for(let d=1; d<=days; d++) h += `<th>${d}</th>`;
+    h += "</tr>";
+
+    people.filter(p => p.name.toLowerCase().includes(q)).forEach(p => {
+      h += `<tr><td class="name"><span>${p.name}</span> <button class="btn-del" onclick="delMember('${p.id}')">✕</button></td>`;
+      for(let d=1; d<=days; d++) {
+        const k = `${p.id}-${d}-C`;
+        h += `<td class="day ${marks[k]?'present':''}" onclick="toggle('${p.id}',${d})">${marks[k]?'X':''}</td>`;
+      }
+      h += "</tr>";
+    });
+    table.innerHTML = h;
+  }
+
+  window.toggle = async (pid, d) => {
+    const k = `marks.${pid}-${d}-C`;
+    await updateDoc(currentDocRef, { [k]: marks[`${pid}-${d}-C`] ? deleteField() : true });
+  };
+
+  window.delMember = async (id) => {
+    if(confirm("Remover membro?")) {
+      const newList = people.filter(p => p.id !== id);
+      await setDoc(peopleDocRef, { people: newList });
+    }
+  };
+
+  // BOTÃO WHATSAPP
+  document.getElementById("btnSendWa").onclick = () => {
+    if(!waText.value) return alert("Gere o texto primeiro!");
+    window.open(`https://wa.me/?text=${encodeURIComponent(waText.value)}`, '_blank');
+  };
+
+  // BOTÃO GERAR TEXTO
+  document.getElementById("btnGenerate").onclick = () => {
+    const d = daySel.value;
+    const pres = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
+    waText.value = `📋 G2 - Presença (${d}/${Number(monthSel.value)+1}/${yearSel.value})\nTotal: ${pres.length}\n\n` + pres.map((n,i)=>`${i+1}. ${n}`).join("\n");
+  };
+
+  // BOTÃO COPIAR
+  document.getElementById("btnCopy").onclick = () => { waText.select(); document.execCommand("copy"); alert("Copiado!"); };
+
+  // BOTÃO BACKUP
   document.getElementById("btnBackup").onclick = () => {
-    const data = { people, marks, exportDate: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([JSON.stringify({people, marks}, null, 2)], {type: "application/json"});
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `backup_G2_${monthSel.value}_${yearSel.value}.json`;
+    a.href = URL.createObjectURL(blob);
+    a.download = `backup_G2_${monthSel.value+1}_${yearSel.value}.json`;
     a.click();
   };
 
-  // Restaurar Backup
+  // BOTÃO RESTAURAR
   document.getElementById("btnRestore").onclick = () => document.getElementById("fileRestore").click();
   document.getElementById("fileRestore").onchange = (e) => {
-    const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      try {
-        const imported = JSON.parse(ev.target.result);
-        if(confirm("Isso substituirá os dados atuais do mês selecionado. Continuar?")) {
-          await setDoc(peopleDocRef, { people: imported.people }, { merge: true });
-          await setDoc(currentDocRef, { marks: imported.marks }, { merge: true });
-          alert("Dados restaurados!");
-        }
-      } catch(err) { alert("Arquivo inválido."); }
-    };
-    reader.readAsText(file);
-  };
-
-  // Função para apagar membro
-  window.delMember = async (id) => {
-    if(!confirm("Deseja realmente remover este membro da lista?")) return;
-    const newList = people.filter(p => p.id !== id);
-    await setDoc(peopleDocRef, { people: newList });
-  };
-
-  // Funções de Render e Toggle (com correção de conflito)
-  function render(){
-    const y = Number(yearSel.value), m = Number(monthSel.value), days = new Date(y, m+1, 0).getDate();
-    const q = (searchEl.value || "").toLowerCase();
-    
-    let html = "<tr><th class='nameHead'>Nome</th>";
-    for(let d=1; d<=days; d++) html += `<th>${d}</th>`;
-    html += "</tr>";
-
-    people.filter(p => p.name.toLowerCase().includes(q)).forEach(p => {
-      html += `<tr><td class="name"><span>${p.name}</span> <button class="btn-del" onclick="delMember('${p.id}')" title="Apagar membro">✕</button></td>`;
-      for(let d=1; d<=days; d++){
-          const k = `${p.id}-${d}-C`; // Simplificado para exemplo, adapte se usar EBD
-          const on = !!marks[k];
-          html += `<td class="day ${on?"present":""}" onclick="toggle('${p.id}',${d},'C')">${on?"X":""}</td>`;
+      const data = JSON.parse(ev.target.result);
+      if(confirm("Restaurar dados?")) {
+        await setDoc(peopleDocRef, { people: data.people }, { merge: true });
+        await setDoc(currentDocRef, { marks: data.marks }, { merge: true });
+        alert("Restaurado!");
       }
-      html += "</tr>";
-    });
-    table.innerHTML = html;
-  }
-
-  window.toggle = async (pid, d, t) => {
-    const k = `${pid}-${d}-${t}`;
-    // O MERGE TRUE evita que o documento seja sobrescrito do zero
-    await setDoc(currentDocRef, { marks: { [k]: marks[k] ? deleteField() : true } }, { merge: true });
+    };
+    reader.readAsText(e.target.files[0]);
   };
 
-  // Inicialização
+  // BOTÃO PDF MENSAL (CONFORME MODELO ICM)
+  document.getElementById("btnPdf").onclick = () => {
+    const { jsPDF } = window.jspdf;
+    const docPdf = new jsPDF('l', 'mm', 'a4');
+    const days = new Date(yearSel.value, Number(monthSel.value)+1, 0).getDate();
+    
+    docPdf.setFontSize(14);
+    docPdf.text("IGREJA CRISTA MARANATA", 14, 15);
+    docPdf.setFontSize(10);
+    docPdf.text(`Chamada do Grupo de Assistência: G2 - Romulo Peredo`, 14, 22);
+    docPdf.text(`Referência: ${months[monthSel.value]} / ${yearSel.value}`, 230, 22);
+
+    const rows = people.map((p, i) => {
+      const row = [i + 1, p.name];
+      for(let d=1; d<=days; d++) row.push(marks[`${p.id}-${d}-C`] ? "X" : "");
+      return row;
+    });
+
+    docPdf.autoTable({
+      head: [['#', 'Pessoa', ...Array.from({length: days}, (_, i) => i + 1)]],
+      body: rows,
+      startY: 30,
+      styles: { fontSize: 7, cellPadding: 1 },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] }
+    });
+    docPdf.save(`Chamada_G2_${months[monthSel.value]}.pdf`);
+  };
+
+  // INICIALIZAÇÃO FIREBASE
   (async ()=>{
-    try {
-      app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
-      await signInAnonymously(auth);
-      onAuthStateChanged(auth, user => {
-        if(user) { setStatus("ok","Conectado","Sincronização Ativa."); attachListeners(); }
-      });
-    } catch(e) { setStatus("bad","Erro","Falha na conexão."); }
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    const auth = getAuth(app);
+    await signInAnonymously(auth);
+    onAuthStateChanged(auth, user => { if(user) { dot.className="dot ok"; statusText.textContent="Conectado"; attachListeners(); } });
   })();
 
-  function setStatus(kind, text, detail){ dot.className = "dot " + (kind==="ok"?"ok":kind==="bad"?"bad":"wait"); statusText.textContent = text; statusDetail.textContent = detail || ""; }
-  monthSel.onchange = yearSel.onchange = () => attachListeners();
-  searchEl.oninput = () => render();
+  monthSel.onchange = yearSel.onchange = attachListeners;
+  searchEl.oninput = render;
+  document.getElementById("btnAdd").onclick = async () => {
+    const n = document.getElementById("newName").value.trim().toUpperCase();
+    if(n) await setDoc(peopleDocRef, { people: [...people, {id: "p"+Date.now(), name: n}].sort((a,b)=>a.name.localeCompare(b.name)) });
+    document.getElementById("newName").value = "";
+  };
 </script>
 </body>
 </html>
