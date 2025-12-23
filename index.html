@@ -18,27 +18,29 @@
     .box{border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff;margin-top:12px}
     textarea{width:100%;min-height:130px;resize:vertical}
     .small{font-size:12px;color:#666}
+    
+    /* CONFIGURAÇÃO DA TABELA E COLUNA FIXA */
     .tableWrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #ddd;border-radius:12px;background:#fff}
     table{border-collapse:collapse;width:max-content;min-width:100%;margin-top:0}
     th,td{border:1px solid #ddd;padding:6px;text-align:center;white-space:nowrap}
     th{background:#f2f2f2;font-size:12px;position:sticky;top:0;z-index:3}
     
-    /* CORREÇÃO DA CÉLULA DE NOMES */
-    th.nameHead, td.name{
-      position:sticky;
-      left:0;
-      z-index:4;
-      background:#fff !important;
-      text-align:left;
-      min-width:260px;
-      max-width:260px;
-      border-right:2px solid #ddd;
-      /* Impede que o nome vaze da célula */
+    /* CELULA DOS NOMES FIXA E SEM SOBREPOSIÇÃO */
+    th.nameHead, td.name {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      background: #fff !important;
+      text-align: left;
+      min-width: 260px;
+      max-width: 260px;
+      border-right: 2px solid #ddd;
+      /* Impede que o texto vaze ou sobreponha */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    th.nameHead{z-index:5; background:#f2f2f2 !important}
+    th.nameHead { z-index: 5; background: #f2f2f2 !important; }
     
     td.name{font-weight:600; display: flex; justify-content: space-between; align-items: center;}
     td.day{min-width:38px; cursor:pointer;}
@@ -47,14 +49,13 @@
     .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
     .dot.ok{background:#16a34a}
     .dot.wait{background:#f59e0b}
-    .dot.bad{background:#dc2626}
     .btn-del{color: #a33; border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 5px;}
   </style>
 </head>
 <body>
 
 <h1>📋 Lista de Presença – G2</h1>
-<div class="muted">Os meses anteriores ficam salvos no banco de dados automaticamente. </div>
+<div class="muted">Os meses anteriores ficam salvos no banco de dados automaticamente.</div>
 
 <div class="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
@@ -164,23 +165,19 @@
     }
   };
 
-  // BOTÃO WHATSAPP
   document.getElementById("btnSendWa").onclick = () => {
     if(!waText.value) return alert("Gere o texto primeiro!");
     window.open(`https://wa.me/?text=${encodeURIComponent(waText.value)}`, '_blank');
   };
 
-  // BOTÃO GERAR TEXTO
   document.getElementById("btnGenerate").onclick = () => {
     const d = daySel.value;
     const pres = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
     waText.value = `📋 G2 - Presença (${d}/${Number(monthSel.value)+1}/${yearSel.value})\nTotal: ${pres.length}\n\n` + pres.map((n,i)=>`${i+1}. ${n}`).join("\n");
   };
 
-  // BOTÃO COPIAR
   document.getElementById("btnCopy").onclick = () => { waText.select(); document.execCommand("copy"); alert("Copiado!"); };
 
-  // BOTÃO BACKUP
   document.getElementById("btnBackup").onclick = () => {
     const blob = new Blob([JSON.stringify({people, marks}, null, 2)], {type: "application/json"});
     const a = document.createElement("a");
@@ -189,7 +186,6 @@
     a.click();
   };
 
-  // BOTÃO RESTAURAR
   document.getElementById("btnRestore").onclick = () => document.getElementById("fileRestore").click();
   document.getElementById("fileRestore").onchange = (e) => {
     const reader = new FileReader();
@@ -204,24 +200,20 @@
     reader.readAsText(e.target.files[0]);
   };
 
-  // BOTÃO PDF MENSAL (CONFORME MODELO ICM)
   document.getElementById("btnPdf").onclick = () => {
     const { jsPDF } = window.jspdf;
     const docPdf = new jsPDF('l', 'mm', 'a4');
     const days = new Date(yearSel.value, Number(monthSel.value)+1, 0).getDate();
-    
     docPdf.setFontSize(14);
     docPdf.text("IGREJA CRISTA MARANATA", 14, 15);
     docPdf.setFontSize(10);
     docPdf.text(`Chamada do Grupo de Assistência: G2 - Romulo Peredo`, 14, 22);
     docPdf.text(`Referência: ${months[monthSel.value]} / ${yearSel.value}`, 230, 22);
-
     const rows = people.map((p, i) => {
       const row = [i + 1, p.name];
       for(let d=1; d<=days; d++) row.push(marks[`${p.id}-${d}-C`] ? "X" : "");
       return row;
     });
-
     docPdf.autoTable({
       head: [['#', 'Pessoa', ...Array.from({length: days}, (_, i) => i + 1)]],
       body: rows,
@@ -232,7 +224,6 @@
     docPdf.save(`Chamada_G2_${months[monthSel.value]}.pdf`);
   };
 
-  // INICIALIZAÇÃO FIREBASE
   (async ()=>{
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
