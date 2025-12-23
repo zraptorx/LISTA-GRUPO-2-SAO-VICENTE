@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lista de Presença – G2 (Com Backup)</title>
+  <title>Lista de Presença G2 - Histórico Permanente</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#fff;color:#111}
     h1{font-size:20px;margin:0 0 6px 0}
@@ -23,9 +23,10 @@
     th,td{border:1px solid #ddd;padding:6px;text-align:center;white-space:nowrap}
     th{background:#f2f2f2;font-size:12px;position:sticky;top:0;z-index:3}
     th.nameHead, td.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:260px;max-width:260px;border-right:2px solid #ddd}
-    td.name{font-weight:600}
-    td.day{min-width:38px; cursor:pointer;}
+    td.name{font-weight:600; display:flex; justify-content:space-between; align-items:center}
+    td.day{min-width:38px; cursor:pointer}
     .present{background:#d1f3dc}
+    .del-btn{color:red; border:none; background:none; font-size:10px; cursor:pointer}
     .statusLine{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ddd;border-radius:12px;background:#fff}
     .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
     .dot.ok{background:#16a34a}
@@ -35,20 +36,26 @@
 </head>
 <body>
 
-<h1>📋 Lista de Presença – G2</h1>
-<div class="muted">Sistema com Proteção de Sincronização e Backup Manual.</div>
+<h1>📋 Lista G2 - Histórico e Sincronização</h1>
+<div class="muted">Os meses anteriores ficam salvos no banco de dados automaticamente.</div>
 
 <div class="statusLine">
   <span><span class="dot wait" id="dot"></span><b id="statusText">Conectando…</b></span>
-  <span class="small" id="statusDetail">Verificando banco de dados.</span>
+  <span id="statusDetail" class="small">Iniciando sistema...</span>
+</div>
+
+<div class="box">
+  <div style="display:flex; gap:10px">
+    <input type="text" id="newName" placeholder="NOME DO NOVO MEMBRO" style="flex:1">
+    <button id="btnAdd" class="primary">Adicionar</button>
+  </div>
 </div>
 
 <div class="topbar">
   <div class="field"><div class="small">Mês</div><select id="month"></select></div>
   <div class="field"><div class="small">Ano</div><select id="year"></select></div>
   <div class="field"><div class="small">Dia (WhatsApp)</div><select id="daySelect"></select></div>
-  <div class="field" style="flex:1;min-width:200px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Filtrar por nome..."></div>
-  <div class="field"><button id="btnPdf" class="primary">PDF Mensal</button></div>
+  <div class="field" style="flex:1;min-width:200px"><div class="small">Buscar</div><input id="search" type="text" placeholder="Filtrar..."></div>
   <div class="field"><button id="btnBackup" class="success">⬇️ Backup</button></div>
   <div class="field"><button id="btnRestore" class="success">⬆️ Restaurar</button></div>
   <input type="file" id="fileRestore" style="display:none" accept=".json">
@@ -57,14 +64,11 @@
 <div class="tableWrap"><table id="table"></table></div>
 
 <div class="box">
-  <button id="btnGenerate" class="primary">Gerar Texto WhatsApp</button>
+  <button id="btnGenerate" class="primary">Gerar Texto</button>
   <button id="btnCopy" class="primary">Copiar</button>
   <button id="btnClearDay" class="danger">Limpar Dia</button>
-  <textarea id="waText" readonly placeholder="Texto aparecerá aqui..."></textarea>
+  <textarea id="waText" readonly></textarea>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 <script type="module">
   const firebaseConfig = {
@@ -80,79 +84,73 @@
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
   import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-  const monthSel = document.getElementById("month"), yearSel = document.getElementById("year"), daySel = document.getElementById("daySelect"), table = document.getElementById("table"), searchEl = document.getElementById("search"), waText = document.getElementById("waText"), dot = document.getElementById("dot"), statusText = document.getElementById("statusText"), statusDetail = document.getElementById("statusDetail");
+  const monthSel = document.getElementById("month"), yearSel = document.getElementById("year"), daySel = document.getElementById("daySelect"), table = document.getElementById("table"), searchEl = document.getElementById("search"), dot = document.getElementById("dot"), statusText = document.getElementById("statusText");
 
   const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   months.forEach((m,i)=>{ const o=document.createElement("option"); o.value=i; o.text=m; monthSel.appendChild(o); });
-  const now = new Date(); monthSel.value = now.getMonth();
-  for(let y=now.getFullYear()-1; y<=now.getFullYear()+2; y++){ const o=document.createElement("option"); o.value=y; o.text=y; yearSel.appendChild(o); }
-  yearSel.value = now.getFullYear();
+  monthSel.value = new Date().getMonth();
+  for(let y=2024; y<=2026; y++){ const o=document.createElement("option"); o.value=y; o.text=y; yearSel.appendChild(o); }
+  yearSel.value = new Date().getFullYear();
 
-  let people = [], marks = {}, app, auth, db, unsubscribeMonth, unsubscribePeople, currentDocRef, peopleDocRef;
+  let people = [], marks = {}, app, auth, db, unsubMonth, unsubPeople, currentDocRef, peopleDocRef;
 
-  // Lógica de Sincronização Aprimorada
+  function updateDayOptions() {
+    const y = Number(yearSel.value), m = Number(monthSel.value);
+    const days = new Date(y, m+1, 0).getDate();
+    const current = daySel.value;
+    daySel.innerHTML = "";
+    for(let d=1; d<=days; d++) { const o = document.createElement("option"); o.value = d; o.text = d; daySel.appendChild(o); }
+    daySel.value = (current && current <= days) ? current : "1";
+  }
+
   async function attachListeners(){
-    if(unsubscribePeople) unsubscribePeople();
+    if(unsubPeople) unsubPeople();
     peopleDocRef = doc(db, "presencas_g2_meta", "people");
-    unsubscribePeople = onSnapshot(peopleDocRef, snap => {
-      if(snap.exists()) people = snap.data().people || [];
+    unsubPeople = onSnapshot(peopleDocRef, snap => {
+      people = snap.exists() ? snap.data().people || [] : [];
       render();
     });
 
-    if(unsubscribeMonth) unsubscribeMonth();
+    if(unsubMonth) unsubMonth();
     const mKey = yearSel.value + "-" + String(Number(monthSel.value)+1).padStart(2,"0");
     currentDocRef = doc(db, "presencas_g2", mKey);
-    
-    unsubscribeMonth = onSnapshot(currentDocRef, snap => {
+
+    // IMPORTANTE: onSnapshot apenas ouve. Se o documento não existe (mês novo), 
+    // ele não cria nada até que você clique em um X. Isso protege meses antigos.
+    unsubMonth = onSnapshot(currentDocRef, snap => {
       marks = snap.exists() ? snap.data().marks || {} : {};
       render();
     });
+    updateDayOptions();
   }
 
-  // Backup Manual
-  document.getElementById("btnBackup").onclick = () => {
-    const data = { people, marks, exportDate: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `backup_G2_${monthSel.value}_${yearSel.value}.json`;
-    a.click();
+  document.getElementById("btnAdd").onclick = async () => {
+    const n = document.getElementById("newName").value.trim().toUpperCase();
+    if(!n) return;
+    const newList = [...people, { id: "p" + Date.now(), name: n }].sort((a,b)=>a.name.localeCompare(b.name));
+    await setDoc(peopleDocRef, { people: newList }, { merge: true });
+    document.getElementById("newName").value = "";
   };
 
-  // Restaurar Backup
-  document.getElementById("btnRestore").onclick = () => document.getElementById("fileRestore").click();
-  document.getElementById("fileRestore").onchange = (e) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const imported = JSON.parse(ev.target.result);
-        if(confirm("Isso substituirá os dados atuais do mês selecionado. Continuar?")) {
-          await setDoc(peopleDocRef, { people: imported.people }, { merge: true });
-          await setDoc(currentDocRef, { marks: imported.marks }, { merge: true });
-          alert("Dados restaurados!");
-        }
-      } catch(err) { alert("Arquivo inválido."); }
-    };
-    reader.readAsText(file);
+  window.delMember = async (id) => {
+    if(!confirm("Remover membro?")) return;
+    const newList = people.filter(p => p.id !== id);
+    await setDoc(peopleDocRef, { people: newList }, { merge: true });
   };
 
-  // Funções de Render e Toggle (com correção de conflito)
   function render(){
     const y = Number(yearSel.value), m = Number(monthSel.value), days = new Date(y, m+1, 0).getDate();
     const q = (searchEl.value || "").toLowerCase();
-    
     let html = "<tr><th class='nameHead'>Nome</th>";
     for(let d=1; d<=days; d++) html += `<th>${d}</th>`;
     html += "</tr>";
 
     people.filter(p => p.name.toLowerCase().includes(q)).forEach(p => {
-      html += `<tr><td class="name">${p.name}</td>`;
+      html += `<tr><td class="name">${p.name} <button class="del-btn" onclick="delMember('${p.id}')">✕</button></td>`;
       for(let d=1; d<=days; d++){
-          const k = `${p.id}-${d}-C`; // Simplificado para exemplo, adapte se usar EBD
-          const on = !!marks[k];
-          html += `<td class="day ${on?"present":""}" onclick="toggle('${p.id}',${d},'C')">${on?"X":""}</td>`;
+        const k = `${p.id}-${d}-C`;
+        const on = !!marks[k];
+        html += `<td class="day ${on?"present":""}" onclick="toggle('${p.id}',${d},'C')">${on?"X":""}</td>`;
       }
       html += "</tr>";
     });
@@ -161,22 +159,50 @@
 
   window.toggle = async (pid, d, t) => {
     const k = `${pid}-${d}-${t}`;
-    // O MERGE TRUE evita que o documento seja sobrescrito do zero
-    await setDoc(currentDocRef, { marks: { [k]: marks[k] ? deleteField() : true } }, { merge: true });
+    const snap = await getDoc(currentDocRef);
+    if(!snap.exists()) {
+      // Se for a primeira marcação do mês, cria o documento
+      await setDoc(currentDocRef, { marks: { [k]: true } });
+    } else {
+      // Se o mês já existir, apenas atualiza o campo específico (protege o resto)
+      await updateDoc(currentDocRef, { [`marks.${k}`]: marks[k] ? deleteField() : true });
+    }
   };
 
-  // Inicialização
+  // Funções de Backup
+  document.getElementById("btnBackup").onclick = () => {
+    const data = { people, marks, month: monthSel.value, year: yearSel.value };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `backup_G2_${monthSel.value+1}_${yearSel.value}.json`;
+    a.click();
+  };
+
+  document.getElementById("btnRestore").onclick = () => document.getElementById("fileRestore").click();
+  document.getElementById("fileRestore").onchange = (e) => {
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const imp = JSON.parse(ev.target.result);
+      if(confirm("Restaurar backup neste mês?")) {
+        await setDoc(peopleDocRef, { people: imp.people }, { merge: true });
+        await setDoc(currentDocRef, { marks: imp.marks }, { merge: true });
+        alert("Restaurado!");
+      }
+    };
+    reader.readAsText(e.target.files[0]);
+  };
+
   (async ()=>{
     try {
       app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
       await signInAnonymously(auth);
       onAuthStateChanged(auth, user => {
-        if(user) { setStatus("ok","Conectado","Sincronização Ativa."); attachListeners(); }
+        if(user) { dot.className="dot ok"; statusText.textContent="Conectado"; attachListeners(); }
       });
-    } catch(e) { setStatus("bad","Erro","Falha na conexão."); }
+    } catch(e) { dot.className="dot bad"; statusText.textContent="Erro"; }
   })();
 
-  function setStatus(kind, text, detail){ dot.className = "dot " + (kind==="ok"?"ok":kind==="bad"?"bad":"wait"); statusText.textContent = text; statusDetail.textContent = detail || ""; }
   monthSel.onchange = yearSel.onchange = () => attachListeners();
   searchEl.oninput = () => render();
 </script>
