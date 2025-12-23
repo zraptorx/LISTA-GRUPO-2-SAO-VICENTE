@@ -18,13 +18,12 @@
     .box{border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff;margin-top:12px}
     textarea{width:100%;min-height:130px;resize:vertical}
     .small{font-size:12px;color:#666}
-    
     .tableWrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #ddd;border-radius:12px;background:#fff}
     table{border-collapse:collapse;width:max-content;min-width:100%;margin-top:0}
     th,td{border:1px solid #ddd;padding:6px;text-align:center;white-space:nowrap}
     th{background:#f2f2f2;font-size:11px;position:sticky;top:0;z-index:3}
     
-    /* COLUNA DE NOMES FIXA E CORRIGIDA */
+    /* COLUNA DE NOMES FIXA */
     th.nameHead, td.name {
       position: sticky;
       left: 0;
@@ -39,16 +38,14 @@
       white-space: nowrap;
     }
     th.nameHead { z-index: 11; background: #f2f2f2 !important; }
-    
     td.name{font-weight:600; display: flex; justify-content: space-between; align-items: center;}
-    td.day{min-width:35px; cursor:pointer; font-size: 12px;}
     .sun{background:#fff9e6 !important}
     .present{background:#d1f3dc !important}
     .statusLine{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ddd;border-radius:12px;background:#fff}
     .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
     .dot.ok{background:#16a34a}
     .dot.wait{background:#f59e0b}
-    .btn-del{color: #a33; border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 5px;}
+    .btn-del{color: #a33; border: none; background: none; font-weight: bold; cursor: pointer;}
   </style>
 </head>
 <body>
@@ -110,43 +107,53 @@
   for(let y=2024; y<=2026; y++) yearSel.add(new Option(y,y));
   yearSel.value = new Date().getFullYear();
 
-  let people = [], marks = {}, db, currentDocRef, peopleDocRef;
+  let people = [], marks = {}, db, currentDocRef, peopleDocRef, unsubP, unsubM;
+
+  async function attachListeners(){
+    const y = yearSel.value, m = Number(monthSel.value), mKey = `${y}-${String(m+1).padStart(2,"0")}`;
+    currentDocRef = doc(db, "presencas_g2", mKey);
+    peopleDocRef = doc(db, "presencas_g2_meta", "people");
+
+    if(unsubP) unsubP();
+    unsubP = onSnapshot(peopleDocRef, snap => { if(snap.exists()) people = snap.data().people || []; render(); });
+
+    if(unsubM) unsubM();
+    unsubM = onSnapshot(currentDocRef, snap => { marks = snap.exists() ? snap.data().marks || {} : {}; render(); });
+
+    const days = new Date(y, m+1, 0).getDate();
+    daySel.innerHTML = "";
+    for(let i=1; i<=days; i++) daySel.add(new Option(i,i));
+  }
 
   function render(){
     const y = Number(yearSel.value), m = Number(monthSel.value), days = new Date(y, m+1, 0).getDate();
-    const q = searchEl.value.toLowerCase();
+    const q = (searchEl.value || "").toLowerCase();
     
-    let h1 = "<tr><th rowspan='2' class='nameHead'>Nome</th>";
-    let h2 = "<tr>";
-
+    let h1 = "<tr><th rowspan='2' class='nameHead'>Nome</th>", h2 = "<tr>";
     for(let d=1; d<=days; d++){
       const isSun = new Date(y, m, d).getDay() === 0;
-      if(isSun){
-        h1 += `<th colspan='2' class='sun'>${d} (Dom)</th>`;
-        h2 += `<th class='sun'>E</th><th class='sun'>C</th>`;
-      } else {
-        h1 += `<th rowspan='2'>${d}</th>`;
-      }
+      if(isSun){ h1 += `<th colspan='2' class='sun'>${d}</th>`; h2 += `<th class='sun'>E</th><th class='sun'>C</th>`; }
+      else { h1 += `<th rowspan='2'>${d}</th>`; }
     }
     h1 += "</tr>"; h2 += "</tr>";
     
-    let bodyHtml = "";
+    let body = "";
     people.filter(p => p.name.toLowerCase().includes(q)).forEach(p => {
-      bodyHtml += `<tr><td class="name"><span>${p.name}</span> <button class="btn-del" onclick="delMember('${p.id}')">✕</button></td>`;
+      body += `<tr><td class="name"><span>${p.name}</span> <button class="btn-del" onclick="delM('${p.id}')">✕</button></td>`;
       for(let d=1; d<=days; d++) {
         const isSun = new Date(y, m, d).getDay() === 0;
         if(isSun){
           const kE = `${p.id}-${d}-E`, kC = `${p.id}-${d}-C`;
-          bodyHtml += `<td class="day sun ${marks[kE]?'present':''}" onclick="toggle('${p.id}',${d},'E')">${marks[kE]?'X':''}</td>`;
-          bodyHtml += `<td class="day sun ${marks[kC]?'present':''}" onclick="toggle('${p.id}',${d},'C')">${marks[kC]?'X':''}</td>`;
+          body += `<td class="day sun ${marks[kE]?'present':''}" onclick="toggle('${p.id}',${d},'E')">${marks[kE]?'X':''}</td>`;
+          body += `<td class="day sun ${marks[kC]?'present':''}" onclick="toggle('${p.id}',${d},'C')">${marks[kC]?'X':''}</td>`;
         } else {
           const k = `${p.id}-${d}-C`;
-          bodyHtml += `<td class="day ${marks[k]?'present':''}" onclick="toggle('${p.id}',${d},'C')">${marks[k]?'X':''}</td>`;
+          body += `<td class="day ${marks[k]?'present':''}" onclick="toggle('${p.id}',${d},'C')">${marks[k]?'X':''}</td>`;
         }
       }
-      bodyHtml += `</tr>`;
+      body += `</tr>`;
     });
-    table.innerHTML = h1 + h2 + bodyHtml;
+    table.innerHTML = h1 + h2 + body;
   }
 
   window.toggle = async (pid, d, type) => {
@@ -154,39 +161,56 @@
     await updateDoc(currentDocRef, { [k]: marks[`${pid}-${d}-${type}`] ? deleteField() : true });
   };
 
-  window.delMember = async (id) => {
-    if(confirm("Remover membro?")) {
-      await setDoc(peopleDocRef, { people: people.filter(p => p.id !== id) });
-    }
-  };
+  window.delM = async (id) => { if(confirm("Remover?")) await setDoc(peopleDocRef, { people: people.filter(p => p.id !== id) }); };
 
   document.getElementById("btnGenerate").onclick = () => {
     const d = daySel.value, isSun = new Date(yearSel.value, monthSel.value, d).getDay() === 0;
-    const presE = people.filter(p => marks[`${p.id}-${d}-E`]).map(p => p.name);
-    const presC = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name);
-    let txt = `📋 G2 - Presença (${d}/${Number(monthSel.value)+1})\n`;
-    if(isSun) {
-      txt += `\n☀️ EBD: ${presE.length}\n` + presE.sort().map((n,i)=>`${i+1}. ${n}`).join("\n");
-      txt += `\n\n🌙 CULTO: ${presC.length}\n` + presC.sort().map((n,i)=>`${i+1}. ${n}`).join("\n");
-    } else {
-      txt += `Total: ${presC.length}\n\n` + presC.sort().map((n,i)=>`${i+1}. ${n}`).join("\n");
-    }
-    waText.value = txt;
+    const pE = people.filter(p => marks[`${p.id}-${d}-E`]).map(p => p.name).sort();
+    const pC = people.filter(p => marks[`${p.id}-${d}-C`]).map(p => p.name).sort();
+    waText.value = `📋 G2 (${d}/${Number(monthSel.value)+1})\n` + (isSun ? `EBD: ${pE.length}\n${pE.join("\n")}\n\nCULTO: ${pC.length}\n${pC.join("\n")}` : `Total: ${pC.length}\n${pC.join("\n")}`);
   };
 
-  document.getElementById("btnCopy").onclick = () => { waText.select(); document.execCommand("copy"); alert("Copiado!"); };
-  document.getElementById("btnSendWa").onclick = () => { if(waText.value) window.open(`https://wa.me/?text=${encodeURIComponent(waText.value)}`, '_blank'); };
+  document.getElementById("btnSendWa").onclick = () => {
+    if(!waText.value) return alert("Gere o texto!");
+    window.open(`https://wa.me/?text=${encodeURIComponent(waText.value)}`, '_blank');
+  };
+
+  document.getElementById("btnPdf").onclick = () => {
+    const { jsPDF } = window.jspdf; const docPdf = new jsPDF('l', 'mm', 'a4');
+    docPdf.text(`Lista G2: ${months[monthSel.value]}/${yearSel.value}`, 14, 15);
+    const rows = people.map((p, i) => [i+1, p.name]);
+    docPdf.autoTable({ head: [['#', 'Nome']], body: rows, startY: 20 });
+    docPdf.save(`G2_${months[monthSel.value]}.pdf`);
+  };
 
   document.getElementById("btnBackup").onclick = () => {
-    const blob = new Blob([JSON.stringify({people, marks}, null, 2)], {type: "application/json"});
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = `backup_G2_${monthSel.value+1}_${yearSel.value}.json`; a.click();
+    const b = new Blob([JSON.stringify({people, marks})], {type: "application/json"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "backup_g2.json"; a.click();
   };
 
   document.getElementById("btnRestore").onclick = () => document.getElementById("fileRestore").click();
   document.getElementById("fileRestore").onchange = (e) => {
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const data = JSON.parse(ev.target.result);
-      if(confirm("Restaurar dados?")) {
-        await setDoc
+    const r = new FileReader(); r.onload = async (ev) => {
+      const d = JSON.parse(ev.target.result);
+      await setDoc(peopleDocRef, { people: d.people }, { merge: true });
+      await setDoc(currentDocRef, { marks: d.marks }, { merge: true });
+      alert("Restaurado!");
+    }; r.readAsText(e.target.files[0]);
+  };
+
+  (async ()=>{
+    const app = initializeApp(firebaseConfig); db = getFirestore(app); const auth = getAuth(app);
+    await signInAnonymously(auth);
+    onAuthStateChanged(auth, user => { if(user) { dot.className="dot ok"; statusText.textContent="Conectado"; attachListeners(); } });
+  })();
+
+  monthSel.onchange = yearSel.onchange = attachListeners;
+  searchEl.oninput = render;
+  document.getElementById("btnAdd").onclick = async () => {
+    const n = document.getElementById("newName").value.trim().toUpperCase();
+    if(n) await setDoc(peopleDocRef, { people: [...people, {id: "p"+Date.now(), name: n}].sort((a,b)=>a.name.localeCompare(b.name)) });
+    document.getElementById("newName").value = "";
+  };
+</script>
+</body>
+</html>
